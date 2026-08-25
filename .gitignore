@@ -1,0 +1,13 @@
+.gradle
+build
+.idea/
+.project
+.settings/
+.classpath
+*.zip
+
+# dev tooling, not for the public repo
+tools/
+
+# scraped wiki data, CC BY-NC-SA. regenerate with tools/pull-variants.py
+data/
