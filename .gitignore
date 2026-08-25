@@ -6,8 +6,8 @@ build
 .classpath
 *.zip
 
-# dev tooling, not for the public repo
-tools/
+# the scrapers ARE the project here - the data is the hard part, so they ship.
+# (this line said tools/ - inherited from thrall-check, where it was right)
 
-# scraped wiki data, CC BY-NC-SA. regenerate with tools/pull-variants.py
+# scraped wiki data, CC BY-NC-SA. regenerate with tools/pull-*.py
 data/
