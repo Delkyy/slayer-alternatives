@@ -52,6 +52,33 @@ public class Option
 		return baseXp > 0 ? bestXp / baseXp : 0;
 	}
 
+	/**
+	 * Is this thing only found inside the Nightmare Zone?
+	 *
+	 * NMZ kills DO count and DO give slayer xp - the wiki has a whole table of them -
+	 * but it's a dream simulation you sit in for afk xp, not somewhere you go to finish
+	 * a task. Nobody picks a boss out of NMZ because they got assigned dagannoth, so by
+	 * default these are noise in a list of "where do I go kill this".
+	 *
+	 * Derived from the locations rather than stored, so it costs nothing and can't fall
+	 * out of sync with the data.
+	 */
+	public boolean isNightmareZoneOnly()
+	{
+		if (locations.isEmpty())
+		{
+			return false;
+		}
+		for (String l : locations)
+		{
+			if (!l.toLowerCase(Locale.ENGLISH).contains("nightmare zone"))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	static List<Option> from(SlayerTask task, boolean sortByXp)
 	{
 		List<Monster> monsters = new ArrayList<>(task.getMonsters());

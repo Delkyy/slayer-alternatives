@@ -336,6 +336,10 @@ class SlayerAltsPanel extends PluginPanel
 			{
 				continue;
 			}
+			if (o.isNightmareZoneOnly() && config.hideNightmareZone())
+			{
+				continue;
+			}
 			body.add(optionRow(o));
 			any = true;
 		}
@@ -423,6 +427,12 @@ class SlayerAltsPanel extends PluginPanel
 		for (Option o : options)
 		{
 			if (o.isSuperior() || o.getBestXp() < 0)
+			{
+				continue;
+			}
+			// an NMZ dream boss is a real option but never the answer to "where do I
+			// go kill this", so it must not become the headline
+			if (o.isNightmareZoneOnly() && config.hideNightmareZone())
 			{
 				continue;
 			}

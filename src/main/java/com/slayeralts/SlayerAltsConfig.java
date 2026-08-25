@@ -34,4 +34,15 @@ public interface SlayerAltsConfig extends Config
 	{
 		return true;
 	}
+
+	@ConfigItem(
+		keyName = "hideNightmareZone",
+		name = "Hide Nightmare Zone dreams",
+		description = "Hides monsters you can only fight inside NMZ. They do count for slayer, but it's an afk dream you sit in rather than somewhere you go to finish a task.",
+		position = 3
+	)
+	default boolean hideNightmareZone()
+	{
+		return true;
+	}
 }

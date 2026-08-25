@@ -194,6 +194,39 @@ public class OptionTest
 	}
 
 	@Test
+	public void nightmareZoneOnlyMonstersAreFlagged()
+	{
+		// NMZ dream bosses do count for slayer, but you don't travel to NMZ to finish a
+		// task - so they're hidden by default rather than deleted from the data.
+		Option mother = find("Dagannoth", "Dagannoth mother (Nightmare Zone)");
+		assertTrue("should be flagged NMZ-only", mother.isNightmareZoneOnly());
+	}
+
+	@Test
+	public void monstersFoundOutsideNmzAreNotFlagged()
+	{
+		// the hard-mode trolls appear in NMZ AND in their real spot. hiding those would
+		// lose a real place you can go and kill them.
+		for (Option o : Option.from(book.find("Trolls"), true))
+		{
+			if (o.getName().startsWith("Dad"))
+			{
+				assertFalse("Dad is in Troll Arena too, not NMZ-only",
+					o.isNightmareZoneOnly());
+				return;
+			}
+		}
+		throw new AssertionError("Dad missing from the trolls task");
+	}
+
+	@Test
+	public void ordinaryMonstersAreNotFlagged()
+	{
+		assertFalse(find("Greater demons", "Tormented Demon").isNightmareZoneOnly());
+		assertFalse(find("Greater demons", "Skotizo").isNightmareZoneOnly());
+	}
+
+	@Test
 	public void collapsingNeverLosesAMonster()
 	{
 		for (SlayerTask t : book.all())
