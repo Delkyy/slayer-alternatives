@@ -12,25 +12,48 @@ them answers "what else counts".
 
 ## Data
 
-Everything comes from the `== Monster variants ==` table on each `Slayer task/<name>`
-wiki page. That table is structured and carries combat level, slayer XP, locations and
-requirements per row.
+Two pulls, two different pages.
+
+**`tools/pull-tasks.py`** reads the master assignment table on the `Slayer task` page.
+This is the authoritative list of what can be assigned: **116 tasks**, each with its
+Slayer level, superiors, alternatives, locations, required items, other requirements and
+which masters give it. 66 tasks have alternatives, 31 have superiors.
+
+**`tools/pull-variants.py`** reads the `== Monster variants ==` table on each
+`Slayer task/<name>` page for the per-monster detail - combat level, slayer XP,
+locations, requirements. **401 rows across 73 tasks.**
 
 **Do not parse the prose on those pages.** The first version of the puller read the
 sentences looking for "also counts towards" and dragged in dungeons, quests, keys and
 combat styles as if they were monsters - a greater demon task came back listing
-Brimhaven Dungeon, Larran's key and "kill count". The table is the source.
+Brimhaven Dungeon, Larran's key and "kill count". The tables are the source.
 
 ```bash
-cd data && python ../tools/pull-variants.py
+cd data && python ../tools/pull-tasks.py && python ../tools/pull-variants.py
 ```
 
-Writes `data/slayer-variants.tsv`. Currently **401 rows across 73 tasks**.
+### GP rates - what's actually available
+
+There is **no GP figure on any monster**. Checked the Bucket API directly: the
+`infobox_monster` bucket exposes only `page_name`, `name`, `combat_level`,
+`slayer_experience`, `slayer_level`, `hitpoints`, `examine`, `max_hit`, `attack_speed`
+and `id`. Nothing about value, loot or profit.
+
+GP exists in exactly one place: the **Money making guide** pages, 138 of which are
+`Killing <monster>`. Those carry a real computed hourly profit (frost dragons off-task:
+1,953,997/hr) but:
+
+- they are **per-guide, not per-monster** - they assume a specific gear setup, and the
+  frost dragon one prices in Torva, an Ultor ring and a dragon hunter lance
+- there is **no bucket** for them (`bucket('mmg')` does not exist), so the number has to
+  be scraped out of rendered HTML
+- coverage is partial - 138 guides against 116 tasks with far more monsters than that
+- the figure moves with GE prices, so a bundled copy goes stale
+
+So GP is possible for a subset, with caveats, and it is a second phase. Slayer XP is
+solid, universal, and already pulled.
 
 ### Not done yet
-
-Seven canonical task pages have no variants table and need doing by hand:
-Aquanites, Dark beast, Dragons, Drakes, Fire giants, Suqah, Wall beast.
 
 The scraped data has **not been checked against the wiki by a human**. It is not
 authoritative until it has.
