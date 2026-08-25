@@ -67,3 +67,24 @@ Lombok fall over on it with errors that look like code faults.
 JAVA_HOME="/c/Program Files/Java/jdk-17" ./gradlew build
 JAVA_HOME="/c/Program Files/Java/jdk-17" ./gradlew run
 ```
+
+## How it works
+
+The panel shows your current task automatically - read from the `slayer` RS-profile
+config that core's own Slayer plugin writes, rather than re-deriving it from the
+DBTable rows. Search finds any task, and searches **monsters too**, so typing `vorkath`
+finds the blue dragon task. "What task do I need for this boss" is the same question
+backwards.
+
+`slayer-data.json` ships inside the jar (147KB). **No network calls at runtime.**
+
+Superiors are listed but greyed out and never set a task's headline XP - they're rare
+spawns, not something you can choose to go and farm.
+
+## Verified
+
+Compiles clean, **15/15 unit tests** - and they run against the real bundled data file,
+not a fixture, so they prove the shipped data parses and matches.
+
+**Not yet run in a game client.** The panel has never been looked at, and task
+auto-detection has never fired against a real slayer task.
