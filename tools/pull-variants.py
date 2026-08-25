@@ -104,6 +104,45 @@ def variants_table(text):
     return rows
 
 
+def split_stacked(cell):
+    """
+    One table cell can hold several values, one per line.
+
+    The dagannoth page puts Prime, Rex and Supreme in a single cell as three [[links]]
+    on separate lines, with three matching xp values stacked the same way in the xp
+    cell. Flattening that gave the monster "Dagannoth Prime Dagannoth Rex Dagannoth
+    Supreme" with no xp at all, because "331.5 331.5 255" doesn't parse as a number.
+
+    Three different ways a cell stacks its values, all seen in real pages:
+      - one per newline          (dagannoth kings)
+      - separated by <br>        (zombie pirate variants)
+      - as a bullet list         (white wolves' two combat levels)
+
+    Returns the individual values, blank ones dropped.
+    """
+    # <br> is a line break like any other
+    cell = re.sub(r"<\s*br\s*/?\s*>", "\n", cell, flags=re.I)
+
+    parts = []
+    for line in cell.split("\n"):
+        line = line.strip().lstrip("*").strip()
+        v = unlink(line)
+        # a trailing separator is left over from "[[A]] /<br> [[B]]"
+        v = v.strip(" /,;")
+        if v:
+            parts.append(v)
+    return parts
+
+
+def looks_numeric(s):
+    """
+    A combat level or xp value, rather than prose that leaked in from a neighbouring
+    cell. "124", "331.5", "1,708", "40/42" and "96, 146" are all real; "Escape Caves"
+    and a bare "|" are not.
+    """
+    return bool(s) and bool(re.search(r"\d", s)) and not re.search(r"[A-Za-z]{3}", s)
+
+
 def bullets(cell):
     out = []
     for line in cell.split("\n"):
@@ -127,6 +166,8 @@ def main():
 
     with open("slayer-variants.tsv", "w", encoding="utf-8") as f:
         f.write("task\tmonster\tcombat\tslayer_xp\tlocations\tnotes\n")
+
+        seen = set()
         n_rows = 0
         n_tasks = 0
         for title in sorted(pages):
@@ -135,15 +176,52 @@ def main():
             if rows:
                 n_tasks += 1
             for r in rows:
-                monster = unlink(r[0])
-                combat = unlink(r[1]) if len(r) > 1 else ""
-                xp = unlink(r[2]) if len(r) > 2 else ""
+                names = split_stacked(r[0])
+                combats = split_stacked(r[1]) if len(r) > 1 else []
+                xps = split_stacked(r[2]) if len(r) > 2 else []
                 locs = " | ".join(bullets(r[3])) if len(r) > 3 else ""
                 notes = " | ".join(bullets(r[4])) if len(r) > 4 else ""
-                if not monster:
+
+                if not names:
                     continue
-                f.write(f"{task}\t{monster}\t{combat}\t{xp}\t{locs}\t{notes}\n")
-                n_rows += 1
+
+                # a single cell naming several npcs with commas, e.g. the three goblin
+                # sergeants. only split when every piece repeats a word - "Sergeant
+                # X, Sergeant Y" is a list; "Kalphite Queen, first form" is not.
+                if len(names) == 1 and re.search(r"[,;]", names[0]):
+                    # the goblin row separates with a comma AND a stray full stop:
+                    # "Sergeant Strongstack, Sergeant Steelwill. Sergeant Grimspike"
+                    pieces = [p.strip(" .") for p in re.split(r"[,;]|\.\s+", names[0])
+                              if p.strip(" .")]
+                    heads = [p.split()[0] for p in pieces if p.split()]
+                    if len(pieces) > 1 and len(set(heads)) == 1:
+                        names = pieces
+
+                # stacked cells line up positionally: name[i] goes with xp[i]. when the
+                # other cells hold a single value it applies to all of them (one combat
+                # level, three kings).
+                #
+                # white wolves is the mirror case - ONE name with two statblocks stacked
+                # under it. iterate the longest column so neither gets dropped.
+                #
+                # only the NUMERIC columns may extend the row count. a stray line in a
+                # prose cell used to invent rows with xp="Escape Caves".
+                combats = [c for c in combats if looks_numeric(c)]
+                xps = [x for x in xps if looks_numeric(x)]
+
+                count = max(len(names), len(combats), len(xps))
+                for i in range(count):
+                    monster = names[i] if i < len(names) else names[0]
+                    combat = combats[i] if i < len(combats) else (
+                        combats[0] if len(combats) == 1 else "")
+                    xp = xps[i] if i < len(xps) else (
+                        xps[0] if len(xps) == 1 else "")
+                    key = (task, monster, combat, xp)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    f.write(f"{task}\t{monster}\t{combat}\t{xp}\t{locs}\t{notes}\n")
+                    n_rows += 1
 
     print(f"# {n_tasks} tasks with a variants table, {n_rows} rows", file=sys.stderr)
     print(f"# {len(pages) - n_tasks} pages had no table - check those by hand", file=sys.stderr)

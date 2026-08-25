@@ -195,6 +195,94 @@ public class TaskBookTest
 	}
 
 	@Test
+	public void stackedCellsBecomeSeparateMonsters()
+	{
+		// the dagannoth page puts Prime, Rex and Supreme in ONE cell, one per line, with
+		// their three xp values stacked the same way. flattening it gave a monster
+		// called "Dagannoth Prime Dagannoth Rex Dagannoth Supreme" with no xp at all.
+		SlayerTask t = book.find("Dagannoth");
+		java.util.Set<String> names = new java.util.HashSet<>();
+		for (Monster m : t.getMonsters())
+		{
+			names.add(m.getName());
+		}
+		assertTrue("Prime missing", names.contains("Dagannoth Prime"));
+		assertTrue("Rex missing", names.contains("Dagannoth Rex"));
+		assertTrue("Supreme missing", names.contains("Dagannoth Supreme"));
+
+		for (Monster m : t.getMonsters())
+		{
+			if (m.getName().equals("Dagannoth Supreme"))
+			{
+				assertEquals(255, m.xp(), 0.5);
+				return;
+			}
+		}
+		throw new AssertionError("no supreme row");
+	}
+
+	@Test
+	public void noMonsterNameIsSeveralMonstersJoined()
+	{
+		// a repeated word in a name is the tell that a stacked cell got flattened
+		for (SlayerTask t : book.all())
+		{
+			for (Monster m : t.getMonsters())
+			{
+				String[] words = m.getName().split("\\s+");
+				if (words.length <= 2)
+				{
+					continue;
+				}
+				java.util.Set<String> seen = new java.util.HashSet<>();
+				for (String w : words)
+				{
+					// brackets are legitimate qualifiers, e.g. "(Nightmare Zone)"
+					if (w.startsWith("(") || w.contains("/"))
+					{
+						continue;
+					}
+					assertTrue(t.getTask() + ": '" + m.getName() + "' repeats '" + w
+						+ "' - looks like several monsters joined", seen.add(w));
+				}
+			}
+		}
+	}
+
+	@Test
+	public void noProseLeakedIntoTheNumberColumns()
+	{
+		// widening the stacked-cell split once invented rows with xp="Escape Caves" and
+		// combat="|" by reading lines out of the neighbouring prose cell.
+		for (SlayerTask t : book.all())
+		{
+			for (Monster m : t.getMonsters())
+			{
+				String xp = m.getSlayerXp() == null ? "" : m.getSlayerXp();
+				String cb = m.getCombat() == null ? "" : m.getCombat();
+				assertFalse(t.getTask() + " / " + m.getName() + " has prose in xp: " + xp,
+					xp.matches(".*[A-Za-z]{3}.*"));
+				assertFalse(t.getTask() + " / " + m.getName() + " has prose in combat: " + cb,
+					cb.matches(".*[A-Za-z]{4}.*"));
+			}
+		}
+	}
+
+	@Test
+	public void noDuplicateStatblocks()
+	{
+		for (SlayerTask t : book.all())
+		{
+			java.util.Set<String> seen = new java.util.HashSet<>();
+			for (Monster m : t.getMonsters())
+			{
+				String key = m.getName() + "|" + m.getCombat() + "|" + m.getSlayerXp();
+				assertTrue(t.getTask() + " lists " + key + " twice", seen.add(key));
+			}
+		}
+	}
+
+	@Test
 	public void mostRowsAreCrossCheckedAgainstTheInfoboxData()
 	{
 		int total = 0;
@@ -210,8 +298,8 @@ public class TaskBookTest
 				}
 			}
 		}
-		assertEquals(401, total);
-		// 388/401 at the time of writing. a drop means the merge stopped matching.
-		assertTrue("only " + verified + "/" + total + " verified", verified >= 380);
+		assertEquals(448, total);
+		// 434/448 at the time of writing. a drop means the merge stopped matching.
+		assertTrue("only " + verified + "/" + total + " verified", verified >= 420);
 	}
 }

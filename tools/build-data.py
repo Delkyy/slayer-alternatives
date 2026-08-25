@@ -144,7 +144,26 @@ def main():
 
     by_task = {}
     for r in out:
-        by_task.setdefault(taskkey(r["task"]), []).append(r)
+        rows = by_task.setdefault(taskkey(r["task"]), [])
+
+        # two source rows can normalise to the same thing: the wiki lists aviansie
+        # twice with different level ranges (69-148 in gwd, 69-137 in wildy gwd) and
+        # the api collapses both to one statblock. keep the first, merge the locations.
+        same = None
+        for prev in rows:
+            if (prev["monster"] == r["monster"]
+                and prev["combat"] == r["combat"]
+                and prev["slayerXp"] == r["slayerXp"]):
+                same = prev
+                break
+
+        if same is not None:
+            for loc in r["locations"]:
+                if loc not in same["locations"]:
+                    same["locations"].append(loc)
+            continue
+
+        rows.append(r)
 
     payload = {
         "source": "OSRS Wiki (CC BY-NC-SA 3.0): Slayer task article tables + infobox_monster bucket",
