@@ -30,8 +30,14 @@ ITEMID = os.path.join(os.path.dirname(ROOT), "runelite",
 # the thieving guide - a guard, a warrior, a knight - and they were landing on dwarves
 # and elemental warriors as if they were pictures of those monsters. A generic human
 # face on a Black Guard (a dwarf) is worse than no icon at all.
-PREFIXES = ["SLAYERGUIDE_", "POH_", "ARCEUUS_CORPSE_", "RAIDS_"]
-SUFFIXES = ["_HEAD", "_MASK", "_PET", "PET", "_INITIAL", "_COOKED", "HEAD", "MASK"]
+#
+# POH_TROPHYDROP_ are mounted boss heads, GODWARS_*_INV the spiritual creature models,
+# POG_SLAYER_DUMMY_ the slayer dummies, and RAG_*_BONE the rag-and-bone jars - each is
+# named for one specific monster, so a match is that monster and nothing else.
+PREFIXES = ["SLAYERGUIDE_", "POH_TROPHYDROP_", "POG_SLAYER_DUMMY_", "POH_",
+            "ARCEUUS_CORPSE_", "GODWARS_", "RAG_", "RAIDS_"]
+SUFFIXES = ["_HEAD", "_MASK", "_PET", "PET", "_INITIAL", "_COOKED", "_INV", "_BONE",
+            "HEAD", "MASK"]
 
 # Hand-picked where the name match can't work. Core does the same thing - its Birds task
 # uses a feather. Keep these obvious: the icon has to read as the monster at a glance.
@@ -94,6 +100,14 @@ def build_index(items, monsters_only=False):
     """
     idx = {}
     for k, v in items.items():
+        # rag-and-bone has three items per monster (jar, pot, polished). the plain one
+        # is the picture; the others just crowd the index with near-duplicates.
+        if k.startswith("RAG_") and ("_POT_" in k or "_POLISHED_" in k):
+            continue
+        # a stuffed trophy is the same head on a plaque
+        if k.endswith("_STUFFED"):
+            continue
+
         family = None
         for pre in PREFIXES:
             if k.startswith(pre):

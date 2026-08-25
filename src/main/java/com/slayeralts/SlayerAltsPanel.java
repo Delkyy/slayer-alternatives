@@ -512,16 +512,13 @@ class SlayerAltsPanel extends PluginPanel
 		Color fg = dim ? FG_FAINT : FG;
 		Color dimmed = dim ? FG_FAINT : FG_DIM;
 
-		JLabel pic = icon(o.getName());
-		if (pic != null)
-		{
-			row.add(pic, BorderLayout.WEST);
-		}
+		// every row gets one, drawn if the cache has no picture, so the column holds
+		row.add(icon(o.getName()), BorderLayout.WEST);
 
 		JPanel text = new JPanel();
 		text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
 		text.setBackground(PANEL);
-		text.setBorder(BorderFactory.createEmptyBorder(0, pic == null ? 0 : 5, 0, 0));
+		text.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 0));
 
 		JPanel line1 = new JPanel(new BorderLayout(4, 0));
 		line1.setBackground(PANEL);
@@ -783,25 +780,78 @@ class SlayerAltsPanel extends PluginPanel
 	}
 
 	/**
-	 * The monster's item icon, or null when we haven't got one.
+	 * The monster's icon.
 	 *
-	 * addTo() is the important half - the image loads off the EDT and repaints the label
-	 * itself when it's ready, so nothing blocks swing. Same call LootTrackerBox makes.
+	 * A real item picture when the cache has one that genuinely depicts this monster,
+	 * otherwise a drawn initial. Only about half of them have art - there is no NPC
+	 * image API, so the rest come from items that happen to show the monster, and for
+	 * 187 of them nothing does. A lettered chip keeps every row the same shape instead
+	 * of leaving a ragged hole down the left edge.
 	 */
 	private JLabel icon(String monster)
 	{
-		int id = icons.forName(monster);
-		if (id < 0)
-		{
-			return null;
-		}
-
 		JLabel l = new JLabel();
 		l.setPreferredSize(new Dimension(32, 30));
 		l.setHorizontalAlignment(JLabel.CENTER);
+
+		int id = icons.forName(monster);
+		if (id < 0)
+		{
+			l.setIcon(new InitialGlyph(monster));
+			return l;
+		}
+
 		AsyncBufferedImage img = itemManager.getImage(id);
 		img.addTo(l);
 		return l;
+	}
+
+	/**
+	 * A monster's first letter in a muted rounded box.
+	 *
+	 * Deliberately plain: it has to read as "no picture for this one" rather than
+	 * pretending to be art, while still holding the column.
+	 */
+	private static class InitialGlyph implements Icon
+	{
+		private static final int SIZE = 18;
+		private final String letter;
+
+		InitialGlyph(String name)
+		{
+			String n = name == null ? "" : name.trim();
+			this.letter = n.isEmpty() ? "?" : n.substring(0, 1).toUpperCase();
+		}
+
+		@Override
+		public void paintIcon(Component c, Graphics g, int x, int y)
+		{
+			Graphics2D g2 = (Graphics2D) g.create();
+			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+				RenderingHints.VALUE_ANTIALIAS_ON);
+			g2.setColor(BG_ALT);
+			g2.fillRoundRect(x, y, SIZE, SIZE, 5, 5);
+			g2.setColor(LINE);
+			g2.drawRoundRect(x, y, SIZE - 1, SIZE - 1, 5, 5);
+			g2.setColor(FG_FAINT);
+			g2.setFont(FontManager.getRunescapeSmallFont());
+			int w = g2.getFontMetrics().stringWidth(letter);
+			int h = g2.getFontMetrics().getAscent();
+			g2.drawString(letter, x + (SIZE - w) / 2, y + (SIZE + h) / 2 - 2);
+			g2.dispose();
+		}
+
+		@Override
+		public int getIconWidth()
+		{
+			return SIZE;
+		}
+
+		@Override
+		public int getIconHeight()
+		{
+			return SIZE;
+		}
 	}
 
 	/** Hover has to recurse or the row lights up in patches. */
