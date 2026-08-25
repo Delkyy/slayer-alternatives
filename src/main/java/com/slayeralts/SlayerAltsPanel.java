@@ -4,6 +4,7 @@
  */
 package com.slayeralts;
 
+import com.google.gson.Gson;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -21,10 +22,12 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.IconTextField;
+import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.LinkBrowser;
 
 class SlayerAltsPanel extends PluginPanel
@@ -36,6 +39,8 @@ class SlayerAltsPanel extends PluginPanel
 	private static final Color ROW_LINE = new Color(47, 47, 47);
 
 	private final SlayerAltsConfig config;
+	private final ItemManager itemManager;
+	private final Icons icons;
 
 	private final IconTextField search = new IconTextField();
 	private final JPanel results = new JPanel();
@@ -46,9 +51,11 @@ class SlayerAltsPanel extends PluginPanel
 	private SlayerTask currentTask;
 
 	@Inject
-	SlayerAltsPanel(SlayerAltsConfig config)
+	SlayerAltsPanel(SlayerAltsConfig config, ItemManager itemManager, Gson gson)
 	{
 		this.config = config;
+		this.itemManager = itemManager;
+		this.icons = Icons.load(gson);
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(8, 8, 8, 8));
@@ -382,24 +389,22 @@ class SlayerAltsPanel extends PluginPanel
 		JPanel left = new JPanel(new BorderLayout(4, 0));
 		left.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 
+		JLabel pic = icon(o.getName());
+		if (pic != null)
+		{
+			left.add(pic, BorderLayout.WEST);
+		}
+
 		JLabel name = new JLabel(o.getName());
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(fg);
-		left.add(name, BorderLayout.WEST);
-
-		if (!o.getCombat().isEmpty())
-		{
-			JLabel cb = new JLabel(o.getCombat());
-			cb.setFont(FontManager.getRunescapeSmallFont());
-			cb.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
-			left.add(cb, BorderLayout.CENTER);
-		}
+		left.add(name, BorderLayout.CENTER);
 
 		JLabel xp = new JLabel(o.getXp().isEmpty() ? "-" : o.getXp() + " xp");
 		xp.setFont(FontManager.getRunescapeSmallFont());
 		xp.setForeground(dim);
 
-		line1.add(left, BorderLayout.WEST);
+		line1.add(left, BorderLayout.CENTER);
 		line1.add(xp, BorderLayout.EAST);
 
 		JPanel line2 = new JPanel(new BorderLayout(4, 0));
@@ -410,7 +415,9 @@ class SlayerAltsPanel extends PluginPanel
 		{
 			loc += ", +" + o.getExtraLocations();
 		}
-		JLabel where = new JLabel(loc);
+
+		String cbText = o.getCombat().isEmpty() ? loc : "lv " + o.getCombat() + "  " + loc;
+		JLabel where = new JLabel(cbText);
 		where.setFont(FontManager.getRunescapeSmallFont());
 		where.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
 
@@ -463,6 +470,27 @@ class SlayerAltsPanel extends PluginPanel
 		});
 
 		return row;
+	}
+
+	/**
+	 * The monster's item icon, or null when we haven't got one.
+	 *
+	 * addTo() is the important half - the image loads off the EDT and repaints the label
+	 * itself when it's ready, so nothing blocks the panel.
+	 */
+	private JLabel icon(String monster)
+	{
+		int id = icons.forName(monster);
+		if (id < 0)
+		{
+			return null;
+		}
+
+		JLabel l = new JLabel();
+		l.setPreferredSize(new Dimension(20, 20));
+		AsyncBufferedImage img = itemManager.getImage(id);
+		img.addTo(l);
+		return l;
 	}
 
 	/** Hover has to recurse or the row lights up in patches. */
