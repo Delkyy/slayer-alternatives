@@ -365,7 +365,8 @@ class SlayerAltsPanel extends PluginPanel
 		}
 		why.append('.');
 
-		JLabel sub = new JLabel("<html><body style='width:145px'>" + why + "</body></html>");
+		JLabel sub = new JLabel("<html><body style='width:" + (TEXT_WIDTH - 14) + "px'>"
+			+ why + "</body></html>");
 		sub.setFont(FontManager.getRunescapeSmallFont());
 		sub.setForeground(FG_DIM);
 		sub.setBorder(new EmptyBorder(3, 0, 0, 0));
@@ -553,12 +554,22 @@ class SlayerAltsPanel extends PluginPanel
 		}
 	}
 
+	/**
+	 * Wrapping text at the panel's real width.
+	 *
+	 * A hardcoded pixel width in the html is what cut the "Bring:" line off - the number
+	 * was guessed once and never matched the panel, so long item lists ran past the edge
+	 * and got chopped. PANEL_WIDTH minus the panel's own padding is the actual room.
+	 */
+	private static final int TEXT_WIDTH = PANEL_WIDTH - 12 - 12;
+
 	private JLabel detail(String text)
 	{
-		JLabel l = new JLabel("<html><body style='width:150px'>" + text + "</body></html>");
+		JLabel l = new JLabel("<html><body style='width:" + TEXT_WIDTH + "px'>"
+			+ text + "</body></html>");
 		l.setFont(FontManager.getRunescapeSmallFont());
 		l.setForeground(FG_DIM);
-		l.setBorder(BorderFactory.createEmptyBorder(6, 4, 4, 4));
+		l.setBorder(BorderFactory.createEmptyBorder(7, 4, 5, 4));
 		return l;
 	}
 }

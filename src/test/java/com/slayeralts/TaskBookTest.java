@@ -162,6 +162,39 @@ public class TaskBookTest
 	}
 
 	@Test
+	public void alternativeItemsAreSeparatedNotMashedTogether()
+	{
+		// several {{plink}}s on one wiki line are alternatives. expanding them straight
+		// produced "Dragonfire ward Ancient wyvern shield Dragonfire shield" - three
+		// items rendered as one nonsense string.
+		SlayerTask t = book.find("Metal dragons");
+		for (String item : t.getItems())
+		{
+			if (item.contains("Dragonfire ward"))
+			{
+				assertTrue("alternatives not separated: " + item, item.contains("/"));
+				return;
+			}
+		}
+		throw new AssertionError("no dragonfire ward row to check");
+	}
+
+	@Test
+	public void noItemLineRunsAwayInLength()
+	{
+		// a single line longer than this can't wrap sensibly in a 225px panel, and is
+		// usually a sign several items got joined into one.
+		for (SlayerTask t : book.all())
+		{
+			for (String item : t.getItems())
+			{
+				assertTrue(t.getTask() + " item line too long (" + item.length() + "): " + item,
+					item.length() <= 90);
+			}
+		}
+	}
+
+	@Test
 	public void mostRowsAreCrossCheckedAgainstTheInfoboxData()
 	{
 		int total = 0;

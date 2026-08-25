@@ -84,7 +84,14 @@ def bullets(cell):
         if not line.startswith("*"):
             continue
         depth = len(line) - len(line.lstrip("*"))
-        v = unlink(line.lstrip("*").strip())
+
+        # several {{plink}}s on one line are ALTERNATIVES, not one item. expanding them
+        # straight gave "Dragonfire ward Ancient wyvern shield Dragonfire shield" as a
+        # single unreadable string. separate them before the templates get flattened.
+        body = line.lstrip("*").strip()
+        body = re.sub(r"\}\}\s*\{\{", "}} / {{", body)
+
+        v = unlink(body)
         if v:
             # ** entries are sub-options (e.g. slayer helmet under nose peg)
             out.append(("  " if depth > 1 else "") + v)
