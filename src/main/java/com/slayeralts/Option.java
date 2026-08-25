@@ -21,13 +21,30 @@ public class Option
 	String combat;
 	String xp;
 	double bestXp;
-	String location;
-	int extraLocations;
+
+	/** Every place this thing is found, deduped across its statblocks. */
+	List<String> locations;
 
 	/** Short tag saying what stands between you and this kill. Empty means nothing does. */
 	String gate;
 	boolean superior;
 	boolean verified;
+
+	public List<String> getLocations()
+	{
+		return locations == null ? java.util.Collections.emptyList() : locations;
+	}
+
+	/** First location, for the one-line summary. */
+	public String getLocation()
+	{
+		return getLocations().isEmpty() ? "" : getLocations().get(0);
+	}
+
+	public int getExtraLocations()
+	{
+		return Math.max(0, getLocations().size() - 1);
+	}
 
 	/** How many times better this is than the worst option on the task. */
 	public double multiplier(double baseXp)
@@ -145,8 +162,7 @@ public class Option
 		}
 
 		return new Option(first.getName(), cb, xp, hi < 0 ? -1 : hi,
-			locs.isEmpty() ? "" : locs.get(0), Math.max(0, locs.size() - 1),
-			gate, first.isSuperior(), verified);
+			locs, gate, first.isSuperior(), verified);
 	}
 
 	private static int parseCombat(String s)

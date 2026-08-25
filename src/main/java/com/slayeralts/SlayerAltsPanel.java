@@ -18,6 +18,7 @@ import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
@@ -365,10 +366,7 @@ class SlayerAltsPanel extends PluginPanel
 		}
 		why.append('.');
 
-		JLabel sub = new JLabel("<html><body style='width:" + (TEXT_WIDTH - 14) + "px'>"
-			+ why + "</body></html>");
-		sub.setFont(FontManager.getRunescapeSmallFont());
-		sub.setForeground(FG_DIM);
+		JTextArea sub = wrapped(why.toString(), FG_DIM);
 		sub.setBorder(new EmptyBorder(3, 0, 0, 0));
 
 		rec.add(top, BorderLayout.NORTH);
@@ -385,6 +383,10 @@ class SlayerAltsPanel extends PluginPanel
 	/** Icon, name and xp on top; level, where, and what gates it underneath. */
 	private JPanel optionRow(Option o)
 	{
+		JPanel wrap = new JPanel();
+		wrap.setLayout(new BoxLayout(wrap, BoxLayout.Y_AXIS));
+		wrap.setBackground(PANEL);
+
 		JPanel row = new JPanel(new BorderLayout(0, 0));
 		row.setBackground(PANEL);
 		row.setBorder(BorderFactory.createCompoundBorder(
@@ -422,10 +424,13 @@ class SlayerAltsPanel extends PluginPanel
 		JPanel line2 = new JPanel(new BorderLayout(4, 0));
 		line2.setBackground(PANEL);
 
+		// the caret is what says "there's more in here" - without it the extra
+		// locations are a secret.
+		int extra = o.getExtraLocations();
 		String loc = o.getLocation();
-		if (o.getExtraLocations() > 0)
+		if (extra > 0)
 		{
-			loc += " +" + o.getExtraLocations();
+			loc = "\u25b8 " + loc + "  +" + extra;
 		}
 		String meta = o.getCombat().isEmpty() ? loc : "lv " + o.getCombat() + "  " + loc;
 
@@ -449,11 +454,33 @@ class SlayerAltsPanel extends PluginPanel
 		JLabel w = wikiButton(o.getName());
 		row.add(w, BorderLayout.EAST);
 
-		StringBuilder tip = new StringBuilder("<html>").append(o.getName());
-		if (!o.getLocation().isEmpty())
+		wrap.add(row);
+
+		// every place this thing lives, hidden until asked for
+		JPanel places = null;
+		if (extra > 0)
 		{
-			tip.append("<br>").append(o.getLocation());
+			places = locations(o);
+			places.setVisible(false);
+			wrap.add(places);
+
+			row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			final JPanel target = places;
+			row.addMouseListener(new MouseAdapter()
+			{
+				@Override
+				public void mouseClicked(MouseEvent e)
+				{
+					target.setVisible(!target.isVisible());
+					where.setText((o.getCombat().isEmpty() ? "" : "lv " + o.getCombat() + "  ")
+						+ (target.isVisible() ? "\u25be " : "\u25b8 ")
+						+ o.getLocation() + "  +" + o.getExtraLocations());
+					wrap.revalidate();
+				}
+			});
 		}
+
+		StringBuilder tip = new StringBuilder("<html>").append(o.getName());
 		if (!o.isVerified())
 		{
 			tip.append("<br><i>unverified - wiki article table only</i>");
@@ -475,7 +502,27 @@ class SlayerAltsPanel extends PluginPanel
 			}
 		});
 
-		return row;
+		return wrap;
+	}
+
+	/** The full location list for a monster, indented under its row. */
+	private JPanel locations(Option o)
+	{
+		JPanel p = new JPanel();
+		p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+		p.setBackground(BG_ALT);
+		p.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 0, 1, 0, LINE),
+			BorderFactory.createEmptyBorder(5, 10, 6, 6)));
+
+		for (String place : o.getLocations())
+		{
+			JTextArea l = wrapped("\u00b7 " + place, FG_DIM);
+			l.setBackground(BG_ALT);
+			l.setAlignmentX(LEFT_ALIGNMENT);
+			p.add(l);
+		}
+		return p;
 	}
 
 	private static JLabel wikiButton(String monster)
@@ -555,21 +602,35 @@ class SlayerAltsPanel extends PluginPanel
 	}
 
 	/**
-	 * Wrapping text at the panel's real width.
+	 * Wrapping text that actually wraps.
 	 *
-	 * A hardcoded pixel width in the html is what cut the "Bring:" line off - the number
-	 * was guessed once and never matched the panel, so long item lists ran past the edge
-	 * and got chopped. PANEL_WIDTH minus the panel's own padding is the actual room.
+	 * An html JLabel with a pixel width in its body style does NOT reflow - it lays out
+	 * once at whatever number you guessed and clips whatever doesn't fit. Guessed twice,
+	 * clipped twice. A JTextArea with line wrap on is a real component that wraps to the
+	 * width it's given, so the panel decides the width instead of me.
 	 */
-	private static final int TEXT_WIDTH = PANEL_WIDTH - 12 - 12;
-
-	private JLabel detail(String text)
+	private static JTextArea wrapped(String text, Color colour)
 	{
-		JLabel l = new JLabel("<html><body style='width:" + TEXT_WIDTH + "px'>"
-			+ text + "</body></html>");
-		l.setFont(FontManager.getRunescapeSmallFont());
-		l.setForeground(FG_DIM);
-		l.setBorder(BorderFactory.createEmptyBorder(7, 4, 5, 4));
-		return l;
+		JTextArea a = new JTextArea(text);
+		a.setLineWrap(true);
+		a.setWrapStyleWord(true);
+		a.setEditable(false);
+		a.setFocusable(false);
+		a.setOpaque(false);
+		a.setBorder(null);
+		a.setFont(FontManager.getRunescapeSmallFont());
+		a.setForeground(colour);
+		return a;
+	}
+
+	private JPanel detail(String text)
+	{
+		JPanel p = new JPanel(new BorderLayout());
+		p.setBackground(BG_ALT);
+		p.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(1, 0, 0, 0, LINE),
+			BorderFactory.createEmptyBorder(7, 6, 7, 6)));
+		p.add(wrapped(text, FG_DIM));
+		return p;
 	}
 }
