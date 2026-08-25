@@ -25,6 +25,8 @@ import net.runelite.api.Skill;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.events.ConfigChanged;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -113,6 +115,40 @@ public class SlayerAltsPlugin extends Plugin
 		panel = null;
 		navButton = null;
 		lastTask = null;
+		// leaving these set means a re-enable starts with another account's quests
+		// and waits a full minute before correcting itself
+		account = Account.UNKNOWN;
+		ticksUntilRefresh = 0;
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		// without this, toggling "hide superiors" does nothing until your task changes.
+		// the panel is already built, so it has to be told to redraw.
+		if (SlayerAltsConfig.GROUP.equals(event.getGroup()) && panel != null)
+		{
+			SwingUtilities.invokeLater(panel::refresh);
+		}
+	}
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		// a different account has different quests. holding the old one would grey out
+		// monsters this player can actually reach, so drop it and re-read on login.
+		if (event.getGameState() == GameState.LOGIN_SCREEN
+			|| event.getGameState() == GameState.HOPPING)
+		{
+			account = Account.UNKNOWN;
+			ticksUntilRefresh = 0;
+
+			SlayerAltsPanel p = panel;
+			if (p != null)
+			{
+				SwingUtilities.invokeLater(() -> p.setAccount(Account.UNKNOWN));
+			}
+		}
 	}
 
 	@Subscribe
@@ -134,7 +170,11 @@ public class SlayerAltsPlugin extends Plugin
 
 		lastTask = task;
 		SlayerTask match = task == null ? null : book.find(task);
-		SwingUtilities.invokeLater(() -> panel.setCurrentTask(task, match));
+		SlayerAltsPanel p = panel;
+		if (p != null)
+		{
+			SwingUtilities.invokeLater(() -> p.setCurrentTask(task, match));
+		}
 	}
 
 	/**
@@ -175,7 +215,12 @@ public class SlayerAltsPlugin extends Plugin
 
 		Account fresh = new Account(finished, levels, client.getRealSkillLevel(Skill.SLAYER));
 		account = fresh;
-		SwingUtilities.invokeLater(() -> panel.setAccount(fresh));
+
+		SlayerAltsPanel p = panel;
+		if (p != null)
+		{
+			SwingUtilities.invokeLater(() -> p.setAccount(fresh));
+		}
 	}
 
 	/** The task core's slayer plugin last recorded, or null. */

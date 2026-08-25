@@ -188,6 +188,12 @@ class SlayerAltsPanel extends PluginPanel
 		rebuild();
 	}
 
+	/** Redraw with whatever's current - config changed, account changed. */
+	void refresh()
+	{
+		rebuild();
+	}
+
 	private void rebuild()
 	{
 		if (book == null)
