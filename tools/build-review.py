@@ -36,11 +36,30 @@ def num(s):
 
 def build():
     tasks = load("slayer-tasks.tsv")
-    variants = load("slayer-variants.tsv")
 
-    by_task = {}
-    for v in variants:
-        by_task.setdefault(key(v["task"]), []).append(v)
+    # prefer the merged/verified data when it's been built
+    merged = os.path.join(DATA, "slayer-data.json")
+    if os.path.exists(merged):
+        with open(merged, encoding="utf-8") as f:
+            payload = json.load(f)
+        by_task = {}
+        for t in payload["tasks"]:
+            if t["monsters"]:
+                by_task[key(t["task"])] = [{
+                    "monster": m["monster"],
+                    "combat": m["combat"],
+                    "slayer_xp": m["slayerXp"],
+                    "locations": " | ".join(m["locations"]),
+                    "notes": " | ".join(m["notes"]),
+                    "verified": m["verified"],
+                    "superior": m["superior"],
+                } for m in t["monsters"]]
+    else:
+        by_task = {}
+        for v in load("slayer-variants.tsv"):
+            v["verified"] = True
+            v["superior"] = False
+            by_task.setdefault(key(v["task"]), []).append(v)
 
     matched = set()
     out = []
@@ -53,8 +72,7 @@ def build():
         alts = [a for a in t["alternatives"].split(" | ") if a.strip()]
         sups = [s for s in t["superiors"].split(" | ") if s.strip()]
 
-        # slayer xp range across the variant rows, for sorting/among-task comparison
-        xps = [num(r["slayer_xp"]) for r in rows]
+        xps = [num(r["slayer_xp"]) for r in rows if not r.get("superior")]
         xps = [x for x in xps if x is not None]
 
         out.append({
@@ -72,8 +90,10 @@ def build():
                 "monster": r["monster"],
                 "combat": r["combat"],
                 "xp": r["slayer_xp"],
-                "locations": [x for x in r["locations"].split(" | ") if x.strip()],
-                "notes": [x for x in r["notes"].split(" | ") if x.strip()],
+                "locations": [x for x in str(r["locations"]).split(" | ") if x.strip()],
+                "notes": [x for x in str(r["notes"]).split(" | ") if x.strip()],
+                "verified": r.get("verified", True),
+                "superior": r.get("superior", False),
             } for r in rows],
         })
 
@@ -117,6 +137,7 @@ main { padding:16px 20px 60px; }
 .tag.alt { color:var(--accent); border-color:#5a4a2a; }
 .tag.none { color:#6a6a6a; }
 .tag.xp { color:var(--good); border-color:#3d5240; }
+.tag.unv { color:var(--warn); border-color:#5a3030; }
 .body { display:none; padding:0 14px 12px; border-top:1px solid var(--line); }
 .task.open .body { display:block; }
 table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
@@ -144,12 +165,13 @@ td.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; 
 
 <header>
   <h1>Slayer Alternatives &mdash; data review</h1>
-  <div class="sub">Scraped from the OSRS Wiki. <strong>Not verified by a human yet</strong> &mdash; this page exists so it can be.</div>
+  <div class="sub">Numbers cross-checked against the wiki's <code>infobox_monster</code> data. Rows marked <span style="color:#e07b7b">unverified</span> have no infobox entry and come from the article table alone.</div>
   <div class="controls">
     <input type="search" id="q" placeholder="Search task, monster or location...">
     <button id="fAlt">Has alternatives</button>
     <button id="fVar">Has variant data</button>
     <button id="fGap">Missing variants</button>
+    <button id="fUnv">Unverified rows</button>
     <button id="expand">Expand all</button>
   </div>
 </header>
@@ -166,7 +188,7 @@ const ORPHANS = __ORPHANS__;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const wiki = n => 'https://oldschool.runescape.wiki/w/' + encodeURIComponent(String(n).replace(/ /g,'_'));
 
-let filters = { alt:false, var:false, gap:false };
+let filters = { alt:false, var:false, gap:false, unv:false };
 let q = '';
 
 function xpNum(v){ const n = parseFloat(String(v).replace(/,/g,'')); return isNaN(n)?null:n; }
@@ -174,16 +196,14 @@ function xpNum(v){ const n = parseFloat(String(v).replace(/,/g,'')); return isNa
 function taskHTML(t, i){
   // superiors are rare spawns you can't choose to farm, so they must not set the
   // headline number. best = best thing you can decide to go and kill.
-  const supNames = new Set(t.superiors.map(s => s.replace(/^Superior slayer monster\s*/,'').trim().toLowerCase()));
-  const choosable = t.variants.filter(v => !supNames.has(String(v.monster).trim().toLowerCase()));
+  const choosable = t.variants.filter(v => !v.superior);
   const best = choosable.reduce((m,v)=>{ const n=xpNum(v.xp); return n!==null&&(m===null||n>m)?n:m; }, null);
 
   const rows = t.variants.map(v => {
     const n = xpNum(v.xp);
-    const isSup = supNames.has(String(v.monster).trim().toLowerCase());
-    const isBest = !isSup && n !== null && n === best && choosable.length > 1;
+    const isBest = !v.superior && n !== null && n === best && choosable.length > 1;
     return `<tr>
-      <td class="mon"><a href="${wiki(v.monster)}" target="_blank" rel="noopener">${esc(v.monster)}</a>${isSup?' <span class="tag">superior</span>':''}</td>
+      <td class="mon"><a href="${wiki(v.monster)}" target="_blank" rel="noopener">${esc(v.monster)}</a>${v.superior?' <span class="tag">superior</span>':''}${v.verified?'':' <span class="tag unv" title="No infobox entry in the Bucket API - this number is from the article table only">unverified</span>'}</td>
       <td class="n">${esc(v.combat||'-')}</td>
       <td class="n ${isBest?'best':''}">${esc(v.xp||'-')}</td>
       <td class="note">${v.locations.map(esc).join(', ')||'-'}</td>
@@ -230,6 +250,7 @@ function match(t){
   if (filters.alt && !t.alternatives.length) return false;
   if (filters.var && !t.variants.length) return false;
   if (filters.gap && t.variants.length) return false;
+  if (filters.unv && !t.variants.some(v=>!v.verified)) return false;
   if (!q) return true;
   const hay = (t.task + ' ' + t.alternatives.join(' ') + ' ' + t.superiors.join(' ') + ' '
     + t.locations.join(' ') + ' ' + t.variants.map(v=>v.monster+' '+v.locations.join(' ')).join(' ')).toLowerCase();
@@ -241,14 +262,15 @@ function render(){
   document.getElementById('list').innerHTML = shown.map(([t,i])=>taskHTML(t,i)).join('')
     || '<p class="empty">Nothing matches.</p>';
   const totalVar = DATA.reduce((n,t)=>n+t.variants.length,0);
+  const unv = DATA.reduce((n,t)=>n+t.variants.filter(v=>!v.verified).length,0);
   document.getElementById('count').textContent =
-    `${shown.length} of ${DATA.length} tasks - ${totalVar} monster rows total`;
+    `${shown.length} of ${DATA.length} tasks - ${totalVar} monster rows, ${totalVar-unv} cross-checked against the wiki's infobox data (${Math.round(100*(totalVar-unv)/totalVar)}%)`;
   document.querySelectorAll('.head').forEach(h =>
     h.onclick = () => h.parentElement.classList.toggle('open'));
 }
 
 document.getElementById('q').oninput = e => { q = e.target.value.toLowerCase().trim(); render(); };
-for (const [id,kk] of [['fAlt','alt'],['fVar','var'],['fGap','gap']]) {
+for (const [id,kk] of [['fAlt','alt'],['fVar','var'],['fGap','gap'],['fUnv','unv']]) {
   document.getElementById(id).onclick = e => {
     filters[kk] = !filters[kk];
     e.target.classList.toggle('on', filters[kk]);
