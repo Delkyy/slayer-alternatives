@@ -100,6 +100,16 @@ properly rather than assumed:
 So the plugin links to the guide instead of inventing a number. A gp figure that
 silently assumes gear you don't own is worse than no figure.
 
+## Licence
+
+The **code** is BSD 2-Clause (`LICENSE`).
+
+The **bundled data** is not. `slayer-data.json` and `gp.json` are derived from the
+[OSRS Wiki](https://oldschool.runescape.wiki) and stay under the wiki's own
+**CC BY-NC-SA 3.0** — attribution required, non-commercial, share-alike. The plugin
+credits the wiki at the bottom of its panel, and `LICENSE-DATA.md` spells out which file
+falls under which licence and why one licence can't cover both.
+
 ## Build
 
 Gradle needs JDK 22 or older here. The default JDK on this box is 25 and both Gradle and

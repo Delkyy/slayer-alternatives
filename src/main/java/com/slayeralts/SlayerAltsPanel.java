@@ -173,6 +173,51 @@ class SlayerAltsPanel extends PluginPanel
 
 		add(top, BorderLayout.NORTH);
 		add(resultsHolder, BorderLayout.CENTER);
+		add(credit(), BorderLayout.SOUTH);
+	}
+
+	/**
+	 * Wiki credit, pinned to the bottom of the panel.
+	 *
+	 * The data is CC BY-NC-SA 3.0 and the BY half means attribution has to be where a
+	 * user can see it, not buried in a repo file. Click it to open the wiki.
+	 */
+	private JPanel credit()
+	{
+		JPanel p = new JPanel(new BorderLayout());
+		p.setBackground(PANEL);
+		p.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(1, 0, 0, 0, LINE),
+			BorderFactory.createEmptyBorder(5, 2, 0, 2)));
+
+		JLabel l = new JLabel("Data: OSRS Wiki (CC BY-NC-SA)", JLabel.CENTER);
+		l.setFont(FontManager.getRunescapeSmallFont());
+		l.setForeground(FG_FAINT);
+		l.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		l.setToolTipText("Slayer data comes from the Old School RuneScape Wiki");
+		l.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				LinkBrowser.browse("https://oldschool.runescape.wiki");
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				l.setForeground(FG_DIM);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				l.setForeground(FG_FAINT);
+			}
+		});
+
+		p.add(l, BorderLayout.CENTER);
+		return p;
 	}
 
 	void init(TaskBook book)
