@@ -5,6 +5,7 @@
 package com.slayeralts;
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -15,8 +16,16 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
+import lombok.Value;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.Icon;
@@ -54,6 +63,7 @@ class SlayerAltsPanel extends PluginPanel
 	private static final Color FG_FAINT = new Color(0x63, 0x69, 0x6f);
 	private static final Color ACC = new Color(0xd9, 0x4f, 0x2b);
 	private static final Color GOOD = new Color(0x4f, 0x9d, 0x5d);
+	private static final Color LOCKED = new Color(0xa5, 0x4d, 0x4d);
 
 	private static final Color HOVER = new Color(0x1c, 0x1f, 0x25);
 
@@ -65,9 +75,48 @@ class SlayerAltsPanel extends PluginPanel
 	private final JPanel results = new JPanel();
 	private final JLabel status = new JLabel();
 
+	/** Monster name -> its money making guide page titles. */
+	private final Map<String, List<Guide>> guides;
+
+	@Value
+	static class Guide
+	{
+		String guide;
+		String setup;
+	}
+
+	private static Map<String, List<Guide>> loadGuides(Gson gson)
+	{
+		Type type = new TypeToken<Map<String, List<Guide>>>()
+		{
+		}.getType();
+
+		try (InputStream in = SlayerAltsPanel.class.getResourceAsStream("gp.json"))
+		{
+			if (in == null)
+			{
+				return Collections.emptyMap();
+			}
+			Map<String, List<Guide>> m = gson.fromJson(
+				new InputStreamReader(in, StandardCharsets.UTF_8), type);
+			return m == null ? Collections.emptyMap() : m;
+		}
+		catch (IOException e)
+		{
+			return Collections.emptyMap();
+		}
+	}
+
 	private TaskBook book;
 	private String currentTaskName;
 	private SlayerTask currentTask;
+	private Account account = Account.UNKNOWN;
+
+	void setAccount(Account account)
+	{
+		this.account = account;
+		rebuild();
+	}
 
 	@Inject
 	SlayerAltsPanel(SlayerAltsConfig config, ItemManager itemManager, Gson gson)
@@ -75,6 +124,7 @@ class SlayerAltsPanel extends PluginPanel
 		this.config = config;
 		this.itemManager = itemManager;
 		this.icons = Icons.load(gson);
+		this.guides = loadGuides(gson);
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(8, 6, 8, 6));
@@ -163,8 +213,23 @@ class SlayerAltsPanel extends PluginPanel
 			}
 			else
 			{
-				status.setText(book.all().size() + " TASKS");
-				results.add(hint("Get a slayer task, or search above."));
+				// no task assigned - show every task worth an alternative, best first.
+				// answers "which tasks are worth keeping" rather than nothing at all.
+				List<SlayerTask> ranked = new java.util.ArrayList<>();
+				for (SlayerTask t : book.all())
+				{
+					if (!t.getMonsters().isEmpty())
+					{
+						ranked.add(t);
+					}
+				}
+				ranked.sort((a, b) -> Double.compare(best(b), best(a)));
+
+				status.setText("ALL TASKS \u00b7 BEST XP FIRST");
+				for (SlayerTask t : ranked)
+				{
+					results.add(taskBox(t, false));
+				}
 			}
 		}
 		else
@@ -183,6 +248,20 @@ class SlayerAltsPanel extends PluginPanel
 
 		results.revalidate();
 		results.repaint();
+	}
+
+	/** Best xp you could get on this task, ignoring superiors. */
+	private static double best(SlayerTask t)
+	{
+		double hi = -1;
+		for (Option o : Option.from(t, true))
+		{
+			if (!o.isSuperior())
+			{
+				hi = Math.max(hi, o.getBestXp());
+			}
+		}
+		return hi;
 	}
 
 	private static int countable(List<Option> opts)
@@ -313,15 +392,16 @@ class SlayerAltsPanel extends PluginPanel
 	}
 
 	/**
-	 * What to go kill and what it costs. Accent bar on the left, same treatment the
-	 * everykill panel gives its headline numbers.
+	 * What to go kill and what it costs.
 	 *
-	 * Only worth drawing when there's a real choice AND the best option is properly
-	 * better than the worst. A 1.1x difference isn't a recommendation, it's noise.
+	 * Recommends the best thing you can ACTUALLY reach - headlining a monster behind a
+	 * quest you haven't done is advice you can't act on. Falls back to the best overall
+	 * when the account isn't known yet.
 	 */
 	private JPanel recommendation(List<Option> options)
 	{
 		Option best = null;
+		Option bestReachable = null;
 		double worst = Double.MAX_VALUE;
 		int choices = 0;
 
@@ -337,6 +417,11 @@ class SlayerAltsPanel extends PluginPanel
 			{
 				best = o;
 			}
+			if (!account.check(o.getGate()).isLocked()
+				&& (bestReachable == null || o.getBestXp() > bestReachable.getBestXp()))
+			{
+				bestReachable = o;
+			}
 		}
 
 		if (best == null || choices < 2)
@@ -344,7 +429,10 @@ class SlayerAltsPanel extends PluginPanel
 			return null;
 		}
 
-		double mult = worst > 0 ? best.getBestXp() / worst : 0;
+		boolean limited = bestReachable != null && bestReachable != best;
+		Option pick = bestReachable != null ? bestReachable : best;
+
+		double mult = worst > 0 ? pick.getBestXp() / worst : 0;
 		if (mult < 1.5)
 		{
 			return null;
@@ -359,7 +447,7 @@ class SlayerAltsPanel extends PluginPanel
 		JPanel top = new JPanel(new BorderLayout());
 		top.setBackground(BG_ALT);
 
-		JLabel who = new JLabel(best.getName());
+		JLabel who = new JLabel(pick.getName());
 		who.setFont(FontManager.getRunescapeSmallFont());
 		who.setForeground(ACC);
 
@@ -370,10 +458,15 @@ class SlayerAltsPanel extends PluginPanel
 		top.add(who, BorderLayout.WEST);
 		top.add(x, BorderLayout.EAST);
 
-		StringBuilder why = new StringBuilder(Option.trim(best.getBestXp()) + " xp each");
-		if (!best.getGate().isEmpty())
+		StringBuilder why = new StringBuilder();
+		if (limited)
 		{
-			why.append(". Needs ").append(best.getGate());
+			why.append("Best you can reach. ");
+		}
+		why.append(Option.trim(pick.getBestXp())).append(" xp each");
+		if (!pick.getGate().isEmpty())
+		{
+			why.append(". Needs ").append(pick.getGate());
 		}
 		why.append('.');
 
@@ -404,8 +497,11 @@ class SlayerAltsPanel extends PluginPanel
 			BorderFactory.createMatteBorder(0, 0, 1, 0, LINE),
 			BorderFactory.createEmptyBorder(3, 4, 3, 6)));
 
-		Color fg = o.isSuperior() ? FG_FAINT : FG;
-		Color dim = o.isSuperior() ? FG_FAINT : FG_DIM;
+		Access access = account.check(o.getGate());
+		boolean dim = o.isSuperior() || access.isLocked();
+
+		Color fg = dim ? FG_FAINT : FG;
+		Color dimmed = dim ? FG_FAINT : FG_DIM;
 
 		JLabel pic = icon(o.getName());
 		if (pic != null)
@@ -427,7 +523,7 @@ class SlayerAltsPanel extends PluginPanel
 
 		JLabel xp = new JLabel(o.getXp().isEmpty() ? "-" : o.getXp() + " xp");
 		xp.setFont(FontManager.getRunescapeSmallFont());
-		xp.setForeground(dim);
+		xp.setForeground(dimmed);
 
 		line1.add(name, BorderLayout.CENTER);
 		line1.add(xp, BorderLayout.EAST);
@@ -449,9 +545,11 @@ class SlayerAltsPanel extends PluginPanel
 		where.setFont(FontManager.getRunescapeSmallFont());
 		where.setForeground(FG_FAINT);
 
+		// green when you can walk in, red when you can't, grey when we can't tell
 		JLabel gate = new JLabel(o.getGate().isEmpty() ? "open" : o.getGate());
 		gate.setFont(FontManager.getRunescapeSmallFont());
-		gate.setForeground(o.getGate().isEmpty() ? GOOD : ACC);
+		gate.setForeground(o.getGate().isEmpty() ? GOOD
+			: access.isLocked() ? LOCKED : FG_FAINT);
 
 		line2.add(where, BorderLayout.CENTER);
 		line2.add(gate, BorderLayout.EAST);
@@ -529,6 +627,46 @@ class SlayerAltsPanel extends PluginPanel
 		}
 
 		inner.add(wikiIcon(o.getName()));
+
+		// the wiki has a money making guide for this one. a POINTER, not a number - the
+		// guides compute profit live from GE prices and each assumes a specific setup,
+		// so any figure we bundled would be a claim about gear we can't see.
+		List<Guide> money = guides.get(o.getName());
+		if (money != null && !money.isEmpty())
+		{
+			Guide g = money.get(0);
+			String label = money.size() > 1
+				? "money guides (" + money.size() + ")"
+				: (g.getSetup().isEmpty() ? "money guide" : "money guide: " + g.getSetup());
+
+			JLabel gp = centred(label, GOOD);
+			gp.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
+			gp.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			gp.setToolTipText("Open the wiki's money making guide");
+			gp.addMouseListener(new MouseAdapter()
+			{
+				@Override
+				public void mouseClicked(MouseEvent e)
+				{
+					e.consume();
+					LinkBrowser.browse("https://oldschool.runescape.wiki/w/"
+						+ g.getGuide().replace(' ', '_'));
+				}
+
+				@Override
+				public void mouseEntered(MouseEvent e)
+				{
+					gp.setForeground(FG);
+				}
+
+				@Override
+				public void mouseExited(MouseEvent e)
+				{
+					gp.setForeground(GOOD);
+				}
+			});
+			inner.add(gp);
+		}
 
 		// BoxLayout hands a child its MAXIMUM height when there's room and squeezes it
 		// when there isn't - which is what cut the last line in half. wrapping the
