@@ -336,7 +336,16 @@ class SlayerAltsPanel extends PluginPanel
 
 		if (!any)
 		{
-			body.add(hint("No monster data on the wiki for this one."));
+			// no monster rows at all. the task still has locations from the master
+			// table, and those are what you actually need to go do it.
+			if (!task.getLocations().isEmpty())
+			{
+				body.add(detail("Found at: " + String.join(", ", task.getLocations())));
+			}
+			else
+			{
+				body.add(detail("The wiki lists no variants for this task."));
+			}
 		}
 
 		if (!task.getItems().isEmpty())

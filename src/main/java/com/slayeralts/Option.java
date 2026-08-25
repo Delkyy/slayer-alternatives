@@ -56,6 +56,14 @@ public class Option
 	{
 		List<Monster> monsters = new ArrayList<>(task.getMonsters());
 
+		// no variants table on the wiki for this task - but the master assignment table
+		// still named its alternatives and superiors, so use those rather than telling
+		// the player there's nothing. 13 tasks are in this state.
+		if (monsters.isEmpty())
+		{
+			return fromNames(task);
+		}
+
 		// group by name - the wiki lists a monster once per statblock
 		List<List<Monster>> groups = new ArrayList<>();
 		for (Monster m : monsters)
@@ -93,6 +101,34 @@ public class Option
 				}
 				return Double.compare(b.bestXp, a.bestXp);
 			});
+		}
+		return out;
+	}
+
+	/**
+	 * Options built from the master table's names alone.
+	 *
+	 * No xp or combat level - those only exist in a variants table. Naming the monster
+	 * and linking its wiki page still beats an empty panel, and the task's own
+	 * locations are better than nothing to go on.
+	 */
+	private static List<Option> fromNames(SlayerTask task)
+	{
+		List<Option> out = new ArrayList<>();
+		List<String> locs = task.getLocations();
+
+		for (String name : task.getAlternatives())
+		{
+			out.add(new Option(name, "", "", -1, locs, "", false, false));
+		}
+		for (String sup : task.getSuperiors())
+		{
+			// the master table writes these as "Superior slayer monster Chasm Crawler"
+			String name = sup.replaceAll("(?i)^superior slayer monsters?\\s*", "").trim();
+			if (!name.isEmpty())
+			{
+				out.add(new Option(name, "", "", -1, locs, "", true, false));
+			}
 		}
 		return out;
 	}

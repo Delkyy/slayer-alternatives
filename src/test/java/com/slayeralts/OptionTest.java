@@ -198,6 +198,13 @@ public class OptionTest
 	{
 		for (SlayerTask t : book.all())
 		{
+			// tasks with no variants table synthesize their options from the master
+			// table's names instead, so there's nothing to compare against here
+			if (t.getMonsters().isEmpty())
+			{
+				continue;
+			}
+
 			java.util.Set<String> raw = new java.util.HashSet<>();
 			for (Monster m : t.getMonsters())
 			{
@@ -210,5 +217,39 @@ public class OptionTest
 			}
 			assertEquals(t.getTask() + " lost a monster", raw, got);
 		}
+	}
+
+	@Test
+	public void tasksWithNoVariantsTableStillOfferSomething()
+	{
+		// 13 tasks have no variants table but DO have alternatives named in the master
+		// assignment table. showing nothing there wasted data we already had.
+		SlayerTask cows = book.find("Cows");
+		assertTrue("Cows has no variants table", cows.getMonsters().isEmpty());
+
+		java.util.Set<String> names = new java.util.HashSet<>();
+		for (Option o : Option.from(cows, true))
+		{
+			names.add(o.getName());
+		}
+		assertTrue("expected the master table's alternatives, got " + names,
+			names.contains("Cow calf"));
+	}
+
+	@Test
+	public void superiorPrefixIsStrippedFromNameOnlyOptions()
+	{
+		// the master table writes "Superior slayer monster Chasm Crawler"
+		for (Option o : Option.from(book.find("Cave crawlers"), true))
+		{
+			assertFalse("prefix left on: " + o.getName(),
+				o.getName().toLowerCase().startsWith("superior slayer"));
+			if (o.getName().equals("Chasm Crawler"))
+			{
+				assertTrue("should be flagged superior", o.isSuperior());
+				return;
+			}
+		}
+		throw new AssertionError("Chasm Crawler missing");
 	}
 }
