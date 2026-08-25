@@ -8,6 +8,7 @@ import com.google.gson.Gson;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -19,11 +20,9 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.MatteBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import net.runelite.client.game.ItemManager;
-import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.IconTextField;
@@ -32,11 +31,26 @@ import net.runelite.client.util.LinkBrowser;
 
 class SlayerAltsPanel extends PluginPanel
 {
-	private static final Color HEADER_BG = ColorScheme.DARKER_GRAY_COLOR.darker();
-	private static final Color REC_BG = new Color(47, 42, 32);
-	private static final Color GATE = new Color(165, 113, 77);
-	private static final Color OPEN = new Color(95, 158, 95);
-	private static final Color ROW_LINE = new Color(47, 47, 47);
+	// Same palette as the everykill panel. Delk's plugins should look like they came
+	// from the same person, and these sit close enough to ColorScheme that the panel
+	// still reads as runelite rather than a website bolted into the client.
+	//   PANEL    #16181d  row background
+	//   BG_ALT   #101216  title strip and nested detail, darker than the row
+	//   LINE     #23262d  rules
+	//   FG       #e8eaed  the thing itself
+	//   FG_DIM   #9aa0a8  supporting numbers
+	//   FG_FAINT #63696f  headings, absent values
+	//   ACC      #d94f2b  rs-adjacent rust, not jagex gold
+	private static final Color PANEL = new Color(0x16, 0x18, 0x1d);
+	private static final Color BG_ALT = new Color(0x10, 0x12, 0x16);
+	private static final Color LINE = new Color(0x23, 0x26, 0x2d);
+	private static final Color FG = new Color(0xe8, 0xea, 0xed);
+	private static final Color FG_DIM = new Color(0x9a, 0xa0, 0xa8);
+	private static final Color FG_FAINT = new Color(0x63, 0x69, 0x6f);
+	private static final Color ACC = new Color(0xd9, 0x4f, 0x2b);
+	private static final Color GOOD = new Color(0x4f, 0x9d, 0x5d);
+
+	private static final Color HOVER = new Color(0x1c, 0x1f, 0x25);
 
 	private final SlayerAltsConfig config;
 	private final ItemManager itemManager;
@@ -58,13 +72,13 @@ class SlayerAltsPanel extends PluginPanel
 		this.icons = Icons.load(gson);
 
 		setLayout(new BorderLayout());
-		setBorder(new EmptyBorder(8, 8, 8, 8));
-		setBackground(ColorScheme.DARK_GRAY_COLOR);
+		setBorder(new EmptyBorder(8, 6, 8, 6));
+		setBackground(PANEL);
 
 		search.setIcon(IconTextField.Icon.SEARCH);
-		search.setPreferredSize(new Dimension(PANEL_WIDTH - 16, 26));
-		search.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		search.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
+		search.setPreferredSize(new Dimension(PANEL_WIDTH - 12, 26));
+		search.setBackground(BG_ALT);
+		search.setHoverBackgroundColor(HOVER);
 		search.getDocument().addDocumentListener(new DocumentListener()
 		{
 			public void insertUpdate(DocumentEvent e)
@@ -84,14 +98,14 @@ class SlayerAltsPanel extends PluginPanel
 		});
 
 		status.setFont(FontManager.getRunescapeSmallFont());
-		status.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		status.setBorder(new EmptyBorder(6, 2, 4, 2));
+		status.setForeground(FG_FAINT);
+		status.setBorder(new EmptyBorder(7, 2, 5, 2));
 
 		results.setLayout(new BoxLayout(results, BoxLayout.Y_AXIS));
-		results.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		results.setBackground(PANEL);
 
 		JPanel top = new JPanel(new BorderLayout());
-		top.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		top.setBackground(PANEL);
 		top.add(search, BorderLayout.NORTH);
 		top.add(status, BorderLayout.CENTER);
 
@@ -127,25 +141,24 @@ class SlayerAltsPanel extends PluginPanel
 			if (currentTask != null)
 			{
 				List<Option> opts = Option.from(currentTask, config.sortByXp());
-				status.setText("Your task: " + currentTask.getTask()
-					+ "  \u00b7  " + countable(opts) + " options");
+				status.setText("YOUR TASK \u00b7 " + countable(opts) + " OPTIONS");
 				results.add(taskBox(currentTask, true));
 			}
 			else if (currentTaskName != null)
 			{
-				status.setText("No data for " + currentTaskName.toLowerCase());
+				status.setText("NO DATA FOR " + currentTaskName.toUpperCase());
 				results.add(hint("Search for another task above."));
 			}
 			else
 			{
-				status.setText(book.all().size() + " tasks");
+				status.setText(book.all().size() + " TASKS");
 				results.add(hint("Get a slayer task, or search above."));
 			}
 		}
 		else
 		{
 			List<SlayerTask> hits = book.search(q);
-			status.setText(hits.size() + (hits.size() == 1 ? " match" : " matches"));
+			status.setText(hits.size() + (hits.size() == 1 ? " MATCH" : " MATCHES"));
 			if (hits.isEmpty())
 			{
 				results.add(hint("Nothing matches \"" + q + "\"."));
@@ -177,7 +190,7 @@ class SlayerAltsPanel extends PluginPanel
 	{
 		JLabel l = new JLabel(text);
 		l.setFont(FontManager.getRunescapeSmallFont());
-		l.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
+		l.setForeground(FG_FAINT);
 		l.setBorder(new EmptyBorder(10, 2, 0, 2));
 		return l;
 	}
@@ -187,28 +200,30 @@ class SlayerAltsPanel extends PluginPanel
 		List<Option> options = Option.from(task, config.sortByXp());
 
 		JPanel box = new JPanel(new BorderLayout());
-		box.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		box.setBorder(new EmptyBorder(5, 0, 0, 0));
+		box.setBackground(PANEL);
+		box.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
 
+		// title strip, darker than the row body so the whole thing reads as one object
 		JPanel header = new JPanel(new BorderLayout());
-		header.setBackground(HEADER_BG);
-		header.setBorder(new EmptyBorder(6, 7, 6, 7));
+		header.setBackground(BG_ALT);
+		header.setBorder(BorderFactory.createEmptyBorder(7, 4, 7, 4));
+		header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
 		JLabel name = new JLabel(task.getTask());
 		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(Color.WHITE);
+		name.setForeground(FG);
 
 		JLabel right = new JLabel(range(options));
 		right.setFont(FontManager.getRunescapeSmallFont());
-		right.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		right.setForeground(FG_DIM);
 
 		header.add(name, BorderLayout.WEST);
 		header.add(right, BorderLayout.EAST);
 
 		JPanel body = new JPanel();
 		body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-		body.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		body.setBorder(new EmptyBorder(5, 7, 7, 7));
+		body.setBackground(PANEL);
+		body.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 		body.setVisible(expanded);
 
 		JPanel rec = recommendation(options);
@@ -250,13 +265,13 @@ class SlayerAltsPanel extends PluginPanel
 			@Override
 			public void mouseEntered(MouseEvent e)
 			{
-				header.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
+				header.setBackground(HOVER);
 			}
 
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
-				header.setBackground(HEADER_BG);
+				header.setBackground(BG_ALT);
 			}
 		});
 
@@ -286,9 +301,10 @@ class SlayerAltsPanel extends PluginPanel
 	}
 
 	/**
-	 * The whole point of the panel: what to go kill, and what it costs.
+	 * What to go kill and what it costs. Accent bar on the left, same treatment the
+	 * everykill panel gives its headline numbers.
 	 *
-	 * Only worth drawing when there's an actual choice AND the best option is properly
+	 * Only worth drawing when there's a real choice AND the best option is properly
 	 * better than the worst. A 1.1x difference isn't a recommendation, it's noise.
 	 */
 	private JPanel recommendation(List<Option> options)
@@ -323,21 +339,21 @@ class SlayerAltsPanel extends PluginPanel
 		}
 
 		JPanel rec = new JPanel(new BorderLayout());
-		rec.setBackground(REC_BG);
+		rec.setBackground(BG_ALT);
 		rec.setBorder(BorderFactory.createCompoundBorder(
-			new MatteBorder(0, 2, 0, 0, ColorScheme.BRAND_ORANGE),
-			new EmptyBorder(5, 6, 5, 6)));
+			BorderFactory.createMatteBorder(0, 2, 0, 0, ACC),
+			BorderFactory.createEmptyBorder(6, 6, 6, 6)));
 
 		JPanel top = new JPanel(new BorderLayout());
-		top.setBackground(REC_BG);
+		top.setBackground(BG_ALT);
 
 		JLabel who = new JLabel(best.getName());
 		who.setFont(FontManager.getRunescapeSmallFont());
-		who.setForeground(ColorScheme.BRAND_ORANGE);
+		who.setForeground(ACC);
 
 		JLabel x = new JLabel(fmtMult(mult) + " xp");
 		x.setFont(FontManager.getRunescapeSmallFont());
-		x.setForeground(ColorScheme.BRAND_ORANGE);
+		x.setForeground(ACC);
 
 		top.add(who, BorderLayout.WEST);
 		top.add(x, BorderLayout.EAST);
@@ -349,19 +365,14 @@ class SlayerAltsPanel extends PluginPanel
 		}
 		why.append('.');
 
-		JLabel sub = new JLabel("<html><body style='width:150px'>" + why + "</body></html>");
+		JLabel sub = new JLabel("<html><body style='width:145px'>" + why + "</body></html>");
 		sub.setFont(FontManager.getRunescapeSmallFont());
-		sub.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		sub.setBorder(new EmptyBorder(2, 0, 0, 0));
+		sub.setForeground(FG_DIM);
+		sub.setBorder(new EmptyBorder(3, 0, 0, 0));
 
 		rec.add(top, BorderLayout.NORTH);
 		rec.add(sub, BorderLayout.CENTER);
-
-		JPanel wrap = new JPanel(new BorderLayout());
-		wrap.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		wrap.setBorder(new EmptyBorder(0, 0, 6, 0));
-		wrap.add(rec);
-		return wrap;
+		return rec;
 	}
 
 	private static String fmtMult(double m)
@@ -370,73 +381,74 @@ class SlayerAltsPanel extends PluginPanel
 			: String.valueOf(Math.round(m * 10) / 10.0)) + "\u00d7";
 	}
 
-	/** Two lines: name/combat/xp, then where it is and what gates it. */
+	/** Icon, name and xp on top; level, where, and what gates it underneath. */
 	private JPanel optionRow(Option o)
 	{
-		JPanel row = new JPanel();
-		row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
-		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		JPanel row = new JPanel(new BorderLayout(0, 0));
+		row.setBackground(PANEL);
 		row.setBorder(BorderFactory.createCompoundBorder(
-			new MatteBorder(0, 0, 1, 0, ROW_LINE),
-			new EmptyBorder(3, 1, 3, 1)));
+			BorderFactory.createMatteBorder(0, 0, 1, 0, LINE),
+			BorderFactory.createEmptyBorder(3, 4, 3, 6)));
 
-		Color fg = o.isSuperior() ? ColorScheme.MEDIUM_GRAY_COLOR : Color.WHITE;
-		Color dim = o.isSuperior() ? ColorScheme.MEDIUM_GRAY_COLOR : ColorScheme.LIGHT_GRAY_COLOR;
-
-		JPanel line1 = new JPanel(new BorderLayout(4, 0));
-		line1.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-
-		JPanel left = new JPanel(new BorderLayout(4, 0));
-		left.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		Color fg = o.isSuperior() ? FG_FAINT : FG;
+		Color dim = o.isSuperior() ? FG_FAINT : FG_DIM;
 
 		JLabel pic = icon(o.getName());
 		if (pic != null)
 		{
-			left.add(pic, BorderLayout.WEST);
+			row.add(pic, BorderLayout.WEST);
 		}
+
+		JPanel text = new JPanel();
+		text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+		text.setBackground(PANEL);
+		text.setBorder(BorderFactory.createEmptyBorder(0, pic == null ? 0 : 5, 0, 0));
+
+		JPanel line1 = new JPanel(new BorderLayout(4, 0));
+		line1.setBackground(PANEL);
 
 		JLabel name = new JLabel(o.getName());
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(fg);
-		left.add(name, BorderLayout.CENTER);
 
 		JLabel xp = new JLabel(o.getXp().isEmpty() ? "-" : o.getXp() + " xp");
 		xp.setFont(FontManager.getRunescapeSmallFont());
 		xp.setForeground(dim);
 
-		line1.add(left, BorderLayout.CENTER);
+		line1.add(name, BorderLayout.CENTER);
 		line1.add(xp, BorderLayout.EAST);
 
 		JPanel line2 = new JPanel(new BorderLayout(4, 0));
-		line2.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		line2.setBackground(PANEL);
 
 		String loc = o.getLocation();
 		if (o.getExtraLocations() > 0)
 		{
-			loc += ", +" + o.getExtraLocations();
+			loc += " +" + o.getExtraLocations();
 		}
+		String meta = o.getCombat().isEmpty() ? loc : "lv " + o.getCombat() + "  " + loc;
 
-		String cbText = o.getCombat().isEmpty() ? loc : "lv " + o.getCombat() + "  " + loc;
-		JLabel where = new JLabel(cbText);
+		JLabel where = new JLabel(meta);
 		where.setFont(FontManager.getRunescapeSmallFont());
-		where.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
+		where.setForeground(FG_FAINT);
 
 		JLabel gate = new JLabel(o.getGate().isEmpty() ? "open" : o.getGate());
 		gate.setFont(FontManager.getRunescapeSmallFont());
-		gate.setForeground(o.getGate().isEmpty() ? OPEN : GATE);
+		gate.setForeground(o.getGate().isEmpty() ? GOOD : ACC);
 
-		line2.add(where, BorderLayout.WEST);
+		line2.add(where, BorderLayout.CENTER);
 		line2.add(gate, BorderLayout.EAST);
 
-		row.add(line1);
-		row.add(line2);
+		text.add(line1);
+		text.add(line2);
+		row.add(text, BorderLayout.CENTER);
 
-		StringBuilder tip = new StringBuilder("<html>");
-		tip.append(o.getName());
-		if (!o.getCombat().isEmpty())
-		{
-			tip.append("<br>Combat ").append(o.getCombat());
-		}
+		// visible rather than a right-click menu - a hidden context menu is a feature
+		// nobody finds. one character, because the panel is 225px.
+		JLabel w = wikiButton(o.getName());
+		row.add(w, BorderLayout.EAST);
+
+		StringBuilder tip = new StringBuilder("<html>").append(o.getName());
 		if (!o.getLocation().isEmpty())
 		{
 			tip.append("<br>").append(o.getLocation());
@@ -450,33 +462,60 @@ class SlayerAltsPanel extends PluginPanel
 		row.addMouseListener(new MouseAdapter()
 		{
 			@Override
-			public void mouseClicked(MouseEvent e)
-			{
-				LinkBrowser.browse("https://oldschool.runescape.wiki/w/"
-					+ o.getName().replace(' ', '_'));
-			}
-
-			@Override
 			public void mouseEntered(MouseEvent e)
 			{
-				setBg(row, ColorScheme.DARK_GRAY_HOVER_COLOR);
+				setBg(row, HOVER);
 			}
 
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
-				setBg(row, ColorScheme.DARKER_GRAY_COLOR);
+				setBg(row, PANEL);
 			}
 		});
 
 		return row;
 	}
 
+	private static JLabel wikiButton(String monster)
+	{
+		JLabel b = new JLabel("w");
+		b.setFont(FontManager.getRunescapeSmallFont());
+		b.setForeground(FG_FAINT);
+		b.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 2));
+		b.setToolTipText("Open the wiki page");
+		b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+		b.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				e.consume();
+				LinkBrowser.browse("https://oldschool.runescape.wiki/w/"
+					+ monster.replace(' ', '_'));
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				b.setForeground(ACC);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				b.setForeground(FG_FAINT);
+			}
+		});
+		return b;
+	}
+
 	/**
 	 * The monster's item icon, or null when we haven't got one.
 	 *
 	 * addTo() is the important half - the image loads off the EDT and repaints the label
-	 * itself when it's ready, so nothing blocks the panel.
+	 * itself when it's ready, so nothing blocks swing. Same call LootTrackerBox makes.
 	 */
 	private JLabel icon(String monster)
 	{
@@ -487,7 +526,8 @@ class SlayerAltsPanel extends PluginPanel
 		}
 
 		JLabel l = new JLabel();
-		l.setPreferredSize(new Dimension(20, 20));
+		l.setPreferredSize(new Dimension(32, 30));
+		l.setHorizontalAlignment(JLabel.CENTER);
 		AsyncBufferedImage img = itemManager.getImage(id);
 		img.addTo(l);
 		return l;
@@ -517,8 +557,8 @@ class SlayerAltsPanel extends PluginPanel
 	{
 		JLabel l = new JLabel("<html><body style='width:150px'>" + text + "</body></html>");
 		l.setFont(FontManager.getRunescapeSmallFont());
-		l.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		l.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
+		l.setForeground(FG_DIM);
+		l.setBorder(BorderFactory.createEmptyBorder(6, 4, 4, 4));
 		return l;
 	}
 }
