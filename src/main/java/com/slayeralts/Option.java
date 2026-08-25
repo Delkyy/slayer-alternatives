@@ -225,6 +225,16 @@ public class Option
 				{
 					return "key / kc";
 				}
+				// diaries and gear read as quests to the parser but aren't. name what
+				// they actually are - "quest" on a diary gate is just wrong.
+				if (n.contains("diary"))
+				{
+					return diary(note);
+				}
+				if (n.contains("mith grapple") || n.contains("grapple"))
+				{
+					return "grapple";
+				}
 				if (n.contains("requires completion of") || n.contains("to access"))
 				{
 					return quest(note);
@@ -249,21 +259,68 @@ public class Option
 			return "";
 		}
 
-		/** Pull the quest name out of "Requires completion of X to access". */
+		/** "Hard Wilderness Diary" -> "hard diary". */
+		private static String diary(String note)
+		{
+			String low = note.toLowerCase(Locale.ENGLISH);
+			for (String tier : new String[]{"easy", "medium", "hard", "elite"})
+			{
+				if (low.contains(tier + " "))
+				{
+					return tier + " diary";
+				}
+			}
+			return "diary";
+		}
+
+		/**
+		 * Pull the quest name out of the wiki's prose.
+		 *
+		 * There is no single phrasing. Real examples, all of which have to land on a
+		 * name short enough for a 225px row:
+		 *   "Requires completion of Dragon Slayer II in order to access."
+		 *   "Requires completion of Bone Voyage"
+		 *   "Requires completion of Dragon Slayer II; only has 1 spawn."
+		 *   "Requires a certain amount of progress in Legends' Quest to access..."
+		 *   "Requires Olaf's Quest to be started to access the cavern."
+		 */
 		private static String quest(String note)
 		{
-			int i = note.toLowerCase(Locale.ENGLISH).indexOf("completion of");
+			String low = note.toLowerCase(Locale.ENGLISH);
+
+			int i = low.indexOf("completion of");
+			int skip = "completion of".length();
+			if (i < 0)
+			{
+				i = low.indexOf("progress in");
+				skip = "progress in".length();
+			}
+			if (i < 0)
+			{
+				i = low.indexOf("requires ");
+				skip = "requires ".length();
+			}
 			if (i < 0)
 			{
 				return "quest";
 			}
-			String rest = note.substring(i + "completion of".length()).trim();
-			int stop = rest.toLowerCase(Locale.ENGLISH).indexOf(" to ");
-			if (stop > 0)
+
+			String rest = note.substring(i + skip).trim();
+
+			// cut at whatever ends the quest name first
+			int cut = rest.length();
+			for (String tail : new String[]{" in order", " to ", " for ", " before ",
+				";", ".", ",", " and ", " or "})
 			{
-				rest = rest.substring(0, stop);
+				int stop = rest.indexOf(tail);
+				if (stop > 0)
+				{
+					cut = Math.min(cut, stop);
+				}
 			}
-			rest = rest.trim();
+			rest = rest.substring(0, cut).trim();
+
+			rest = rest.replaceAll("^(the first part of|partial) ", "").trim();
 			return rest.isEmpty() || rest.length() > 24 ? "quest" : rest;
 		}
 	}

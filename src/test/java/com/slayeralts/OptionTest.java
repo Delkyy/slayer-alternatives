@@ -100,6 +100,41 @@ public class OptionTest
 	}
 
 	@Test
+	public void questGateSurvivesTheInOrderPhrasing()
+	{
+		// "Requires completion of Dragon Slayer II in order to access" used to cut at
+		// " to " only, leaving "Dragon Slayer II in order" - too long, so it fell back
+		// to a bare "quest" that told you nothing.
+		assertEquals("Dragon Slayer II", find("Metal dragons", "Rune dragon").getGate());
+		assertEquals("Dragon Slayer II", find("Metal dragons", "Adamant dragon").getGate());
+	}
+
+	@Test
+	public void gateNamesAQuestRatherThanSayingQuest()
+	{
+		// a bare "quest" is a parse failure, not an answer. a couple are genuinely
+		// unparseable, but it should be rare.
+		int bare = 0;
+		int named = 0;
+		for (SlayerTask t : book.all())
+		{
+			for (Option o : Option.from(t, true))
+			{
+				if (o.getGate().equals("quest"))
+				{
+					bare++;
+				}
+				else if (!o.getGate().isEmpty())
+				{
+					named++;
+				}
+			}
+		}
+		assertTrue("too many unparsed quest gates: " + bare + " bare vs " + named + " named",
+			bare <= 5);
+	}
+
+	@Test
 	public void totemGateIsShort()
 	{
 		assertEquals("dark totem", find("Greater demons", "Skotizo").getGate());
