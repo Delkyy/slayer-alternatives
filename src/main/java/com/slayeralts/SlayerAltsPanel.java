@@ -424,15 +424,15 @@ class SlayerAltsPanel extends PluginPanel
 		JPanel line2 = new JPanel(new BorderLayout(4, 0));
 		line2.setBackground(PANEL);
 
-		// the caret is what says "there's more in here" - without it the extra
-		// locations are a secret.
+		// the caret says "there's more in here". every row gets one - a caret on some
+		// rows and not others reads as broken rather than as a distinction.
 		int extra = o.getExtraLocations();
-		String loc = o.getLocation();
+		String loc = o.getLocation().isEmpty() ? "no location listed" : o.getLocation();
 		if (extra > 0)
 		{
-			loc = "\u25b8 " + loc + "  +" + extra;
+			loc = loc + "  +" + extra;
 		}
-		String meta = o.getCombat().isEmpty() ? loc : "lv " + o.getCombat() + "  " + loc;
+		String meta = "\u25b8 " + (o.getCombat().isEmpty() ? loc : "lv " + o.getCombat() + "  " + loc);
 
 		JLabel where = new JLabel(meta);
 		where.setFont(FontManager.getRunescapeSmallFont());
@@ -449,36 +449,24 @@ class SlayerAltsPanel extends PluginPanel
 		text.add(line2);
 		row.add(text, BorderLayout.CENTER);
 
-		// visible rather than a right-click menu - a hidden context menu is a feature
-		// nobody finds. one character, because the panel is 225px.
-		JLabel w = wikiButton(o.getName());
-		row.add(w, BorderLayout.EAST);
-
 		wrap.add(row);
 
-		// every place this thing lives, hidden until asked for
-		JPanel places = null;
-		if (extra > 0)
-		{
-			places = locations(o);
-			places.setVisible(false);
-			wrap.add(places);
+		// every place this thing lives plus its wiki link, hidden until asked for
+		JPanel places = locations(o);
+		places.setVisible(false);
+		wrap.add(places);
 
-			row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-			final JPanel target = places;
-			row.addMouseListener(new MouseAdapter()
+		row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		row.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
 			{
-				@Override
-				public void mouseClicked(MouseEvent e)
-				{
-					target.setVisible(!target.isVisible());
-					where.setText((o.getCombat().isEmpty() ? "" : "lv " + o.getCombat() + "  ")
-						+ (target.isVisible() ? "\u25be " : "\u25b8 ")
-						+ o.getLocation() + "  +" + o.getExtraLocations());
-					wrap.revalidate();
-				}
-			});
-		}
+				places.setVisible(!places.isVisible());
+				where.setText((places.isVisible() ? "\u25be " : "\u25b8 ") + meta.substring(2));
+				wrap.revalidate();
+			}
+		});
 
 		StringBuilder tip = new StringBuilder("<html>").append(o.getName());
 		if (!o.isVerified())
@@ -505,7 +493,12 @@ class SlayerAltsPanel extends PluginPanel
 		return wrap;
 	}
 
-	/** The full location list for a monster, indented under its row. */
+	/**
+	 * The full location list for a monster, plus its wiki link.
+	 *
+	 * Centred, because it's a detail panel hanging under its row rather than another
+	 * list of rows - left-aligning it made it read as more monsters.
+	 */
 	private JPanel locations(Option o)
 	{
 		JPanel p = new JPanel();
@@ -513,50 +506,60 @@ class SlayerAltsPanel extends PluginPanel
 		p.setBackground(BG_ALT);
 		p.setBorder(BorderFactory.createCompoundBorder(
 			BorderFactory.createMatteBorder(0, 0, 1, 0, LINE),
-			BorderFactory.createEmptyBorder(5, 10, 6, 6)));
+			BorderFactory.createEmptyBorder(6, 8, 7, 8)));
 
-		for (String place : o.getLocations())
+		if (o.getLocations().isEmpty())
 		{
-			JTextArea l = wrapped("\u00b7 " + place, FG_DIM);
-			l.setBackground(BG_ALT);
-			l.setAlignmentX(LEFT_ALIGNMENT);
-			p.add(l);
+			p.add(centred("Nowhere listed on the wiki.", FG_FAINT));
 		}
-		return p;
-	}
+		else
+		{
+			for (String place : o.getLocations())
+			{
+				p.add(centred(place, FG_DIM));
+			}
+		}
 
-	private static JLabel wikiButton(String monster)
-	{
-		JLabel b = new JLabel("w");
-		b.setFont(FontManager.getRunescapeSmallFont());
-		b.setForeground(FG_FAINT);
-		b.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 2));
-		b.setToolTipText("Open the wiki page");
-		b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-		b.addMouseListener(new MouseAdapter()
+		JLabel link = centred("Open wiki page", ACC);
+		link.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
+		link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		link.addMouseListener(new MouseAdapter()
 		{
 			@Override
 			public void mouseClicked(MouseEvent e)
 			{
 				e.consume();
 				LinkBrowser.browse("https://oldschool.runescape.wiki/w/"
-					+ monster.replace(' ', '_'));
+					+ o.getName().replace(' ', '_'));
 			}
 
 			@Override
 			public void mouseEntered(MouseEvent e)
 			{
-				b.setForeground(ACC);
+				link.setForeground(FG);
 			}
 
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
-				b.setForeground(FG_FAINT);
+				link.setForeground(ACC);
 			}
 		});
-		return b;
+		p.add(link);
+
+		return p;
+	}
+
+	/** A centred line inside a BoxLayout column. */
+	private static JLabel centred(String text, Color colour)
+	{
+		JLabel l = new JLabel(text, JLabel.CENTER);
+		l.setFont(FontManager.getRunescapeSmallFont());
+		l.setForeground(colour);
+		// BoxLayout aligns children against each other, so every child must agree
+		l.setAlignmentX(CENTER_ALIGNMENT);
+		l.setMaximumSize(new Dimension(Integer.MAX_VALUE, l.getPreferredSize().height));
+		return l;
 	}
 
 	/**
