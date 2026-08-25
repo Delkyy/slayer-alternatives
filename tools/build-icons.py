@@ -25,7 +25,12 @@ ITEMID = os.path.join(os.path.dirname(ROOT), "runelite",
 
 # Families of item that depict a monster, in order of how good they look at 18px.
 # Slayer guide icons are purpose-drawn monster portraits, so they win.
-PREFIXES = ["SLAYERGUIDE_", "POH_", "ARCEUUS_CORPSE_", "PICKPOCKET_GUIDE_", "RAIDS_"]
+#
+# PICKPOCKET_GUIDE_* is deliberately NOT here. Those are generic human portraits from
+# the thieving guide - a guard, a warrior, a knight - and they were landing on dwarves
+# and elemental warriors as if they were pictures of those monsters. A generic human
+# face on a Black Guard (a dwarf) is worse than no icon at all.
+PREFIXES = ["SLAYERGUIDE_", "POH_", "ARCEUUS_CORPSE_", "RAIDS_"]
 SUFFIXES = ["_HEAD", "_MASK", "_PET", "PET", "_INITIAL", "_COOKED", "HEAD", "MASK"]
 
 # Hand-picked where the name match can't work. Core does the same thing - its Birds task
@@ -79,10 +84,30 @@ def norm(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
-def build_index(items):
-    """item name with its family markers stripped -> (constant, id)."""
+def build_index(items, monsters_only=False):
+    """
+    item name with its family markers stripped -> (constant, id).
+
+    monsters_only restricts the index to families that DEPICT a monster. Fuzzy matching
+    against all 19,000 items is how "Black bear" became BLACK_BEAD and "Ice troll"
+    became CERT_ROLL - a near-miss on a word is not a near-miss on a monster.
+    """
     idx = {}
     for k, v in items.items():
+        family = None
+        for pre in PREFIXES:
+            if k.startswith(pre):
+                family = pre
+                break
+        if family is None:
+            for suf in SUFFIXES:
+                if k.endswith(suf):
+                    family = suf
+                    break
+
+        if monsters_only and family is None:
+            continue
+
         s = k
         for pre in PREFIXES:
             if s.startswith(pre):
@@ -98,29 +123,33 @@ def build_index(items):
     return idx
 
 
-def match(name, idx, keys):
+def match(name, idx, monster_idx, monster_keys):
     n = norm(name)
     if n in idx:
         return idx[n]
     if n.endswith("s") and n[:-1] in idx:
         return idx[n[:-1]]
-    # the cache spells it SPECTER, the wiki spells it spectre
-    close = difflib.get_close_matches(n, keys, n=1, cutoff=0.87)
-    if close:
-        return idx[close[0]]
 
-    # "Brutal black dragon" is a black dragon wearing a hat. drop the qualifier and
-    # let it inherit the base monster's icon rather than showing nothing.
+    # the cache spells it SPECTER, the wiki spells it spectre. only ever fuzzy against
+    # things that actually depict monsters, never the whole item list.
+    close = difflib.get_close_matches(n, monster_keys, n=1, cutoff=0.85)
+    if close:
+        return monster_idx[close[0]]
+
+    # "Brutal black dragon" is a black dragon wearing a hat, so it can inherit the base
+    # monster's icon. But the stem has to still NAME something - dropping a word off
+    # "Black Guard" leaves "Guard", which matched a human city guard and put the wrong
+    # picture on a dwarf. So the stem may only match something that DEPICTS a monster.
     words = name.split()
     for cut in range(1, len(words)):
         stem = " ".join(words[cut:])
         s = norm(stem)
         if len(s) < 4:
             break
-        if s in idx:
-            return idx[s]
-        if s.endswith("s") and s[:-1] in idx:
-            return idx[s[:-1]]
+        if s in monster_idx:
+            return monster_idx[s]
+        if s.endswith("s") and s[:-1] in monster_idx:
+            return monster_idx[s[:-1]]
     return None
 
 
@@ -137,7 +166,8 @@ def main():
         raise SystemExit("OVERRIDES names that aren't in ItemID.java: " + ", ".join(typos))
 
     idx = build_index(items)
-    keys = list(idx)
+    monster_idx = build_index(items, monsters_only=True)
+    monster_keys = list(monster_idx)
 
     with open(os.path.join(DATA, "slayer-data.json"), encoding="utf-8") as f:
         payload = json.load(f)
@@ -155,7 +185,7 @@ def main():
             icons[name] = items[OVERRIDES[name]]
             how["override"] += 1
             continue
-        hit = match(name, idx, keys)
+        hit = match(name, idx, monster_idx, monster_keys)
         if hit:
             icons[name] = hit[1]
             how["matched"] += 1
