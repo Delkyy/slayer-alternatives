@@ -10,12 +10,16 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
 import javax.inject.Inject;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
@@ -105,13 +109,20 @@ class SlayerAltsPanel extends PluginPanel
 		results.setLayout(new BoxLayout(results, BoxLayout.Y_AXIS));
 		results.setBackground(PANEL);
 
+		// BoxLayout stretches its children to fill leftover vertical space, which
+		// squashed the last line of an expanded row. NORTH in a BorderLayout gives the
+		// column its preferred height and leaves the slack below it.
+		JPanel resultsHolder = new JPanel(new BorderLayout());
+		resultsHolder.setBackground(PANEL);
+		resultsHolder.add(results, BorderLayout.NORTH);
+
 		JPanel top = new JPanel(new BorderLayout());
 		top.setBackground(PANEL);
 		top.add(search, BorderLayout.NORTH);
 		top.add(status, BorderLayout.CENTER);
 
 		add(top, BorderLayout.NORTH);
-		add(results, BorderLayout.CENTER);
+		add(resultsHolder, BorderLayout.CENTER);
 	}
 
 	void init(TaskBook book)
@@ -494,60 +505,122 @@ class SlayerAltsPanel extends PluginPanel
 	}
 
 	/**
-	 * The full location list for a monster, plus its wiki link.
+	 * The full location list for a monster, plus a wiki link.
 	 *
 	 * Centred, because it's a detail panel hanging under its row rather than another
 	 * list of rows - left-aligning it made it read as more monsters.
 	 */
 	private JPanel locations(Option o)
 	{
-		JPanel p = new JPanel();
-		p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-		p.setBackground(BG_ALT);
-		p.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createMatteBorder(0, 0, 1, 0, LINE),
-			BorderFactory.createEmptyBorder(6, 8, 7, 8)));
+		JPanel inner = new JPanel();
+		inner.setLayout(new BoxLayout(inner, BoxLayout.Y_AXIS));
+		inner.setBackground(BG_ALT);
 
 		if (o.getLocations().isEmpty())
 		{
-			p.add(centred("Nowhere listed on the wiki.", FG_FAINT));
+			inner.add(centred("Nowhere listed on the wiki", FG_FAINT));
 		}
 		else
 		{
 			for (String place : o.getLocations())
 			{
-				p.add(centred(place, FG_DIM));
+				inner.add(centred(place, FG_DIM));
 			}
 		}
 
-		JLabel link = centred("Open wiki page", ACC);
-		link.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
-		link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-		link.addMouseListener(new MouseAdapter()
+		inner.add(wikiIcon(o.getName()));
+
+		// BoxLayout hands a child its MAXIMUM height when there's room and squeezes it
+		// when there isn't - which is what cut the last line in half. wrapping the
+		// column in a BorderLayout panel pins it to its preferred height instead.
+		JPanel p = new JPanel(new BorderLayout());
+		p.setBackground(BG_ALT);
+		p.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 0, 1, 0, LINE),
+			BorderFactory.createEmptyBorder(6, 8, 7, 8)));
+		p.add(inner, BorderLayout.CENTER);
+		return p;
+	}
+
+	/**
+	 * Small wiki button. An icon rather than the words "Open wiki page" - the text was
+	 * long enough to clip in a 225px panel, and a 16px glyph never can.
+	 *
+	 * Drawn rather than bundled: RuneLite has no wiki icon an external plugin can use,
+	 * and a hand-drawn "w" needs no asset and no licence.
+	 */
+	private JLabel wikiIcon(String monster)
+	{
+		JLabel b = new JLabel(new WikiGlyph(FG_FAINT));
+		b.setAlignmentX(CENTER_ALIGNMENT);
+		b.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
+		b.setToolTipText("Open the wiki page for " + monster);
+		b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		b.setMaximumSize(b.getPreferredSize());
+
+		b.addMouseListener(new MouseAdapter()
 		{
 			@Override
 			public void mouseClicked(MouseEvent e)
 			{
 				e.consume();
 				LinkBrowser.browse("https://oldschool.runescape.wiki/w/"
-					+ o.getName().replace(' ', '_'));
+					+ monster.replace(' ', '_'));
 			}
 
 			@Override
 			public void mouseEntered(MouseEvent e)
 			{
-				link.setForeground(FG);
+				b.setIcon(new WikiGlyph(ACC));
 			}
 
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
-				link.setForeground(ACC);
+				b.setIcon(new WikiGlyph(FG_FAINT));
 			}
 		});
-		p.add(link);
+		return b;
+	}
 
-		return p;
+	/** A 16px rounded square with a "w" in it. */
+	private static class WikiGlyph implements Icon
+	{
+		private static final int SIZE = 16;
+		private final Color colour;
+
+		WikiGlyph(Color colour)
+		{
+			this.colour = colour;
+		}
+
+		@Override
+		public void paintIcon(Component c, Graphics g, int x, int y)
+		{
+			Graphics2D g2 = (Graphics2D) g.create();
+			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+				RenderingHints.VALUE_ANTIALIAS_ON);
+			g2.setColor(colour);
+			g2.drawRoundRect(x, y, SIZE - 1, SIZE - 1, 4, 4);
+			g2.setFont(FontManager.getRunescapeSmallFont());
+			String s = "w";
+			int w = g2.getFontMetrics().stringWidth(s);
+			int h = g2.getFontMetrics().getAscent();
+			g2.drawString(s, x + (SIZE - w) / 2, y + (SIZE + h) / 2 - 2);
+			g2.dispose();
+		}
+
+		@Override
+		public int getIconWidth()
+		{
+			return SIZE;
+		}
+
+		@Override
+		public int getIconHeight()
+		{
+			return SIZE;
+		}
 	}
 
 	/** A centred line inside a BoxLayout column. */
