@@ -8,7 +8,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
@@ -19,6 +18,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.MatteBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import net.runelite.client.ui.ColorScheme;
@@ -30,6 +30,10 @@ import net.runelite.client.util.LinkBrowser;
 class SlayerAltsPanel extends PluginPanel
 {
 	private static final Color HEADER_BG = ColorScheme.DARKER_GRAY_COLOR.darker();
+	private static final Color REC_BG = new Color(47, 42, 32);
+	private static final Color GATE = new Color(165, 113, 77);
+	private static final Color OPEN = new Color(95, 158, 95);
+	private static final Color ROW_LINE = new Color(47, 47, 47);
 
 	private final SlayerAltsConfig config;
 
@@ -109,20 +113,19 @@ class SlayerAltsPanel extends PluginPanel
 		}
 
 		results.removeAll();
-
 		String q = search.getText().trim();
 
 		if (q.isEmpty())
 		{
 			if (currentTask != null)
 			{
-				status.setText("Your task: " + currentTask.getTask());
+				List<Option> opts = Option.from(currentTask, config.sortByXp());
+				status.setText("Your task: " + currentTask.getTask()
+					+ "  \u00b7  " + countable(opts) + " options");
 				results.add(taskBox(currentTask, true));
 			}
 			else if (currentTaskName != null)
 			{
-				// core knows the task but we have no row for it. say so rather than
-				// showing an empty panel and looking broken
 				status.setText("No data for " + currentTaskName.toLowerCase());
 				results.add(hint("Search for another task above."));
 			}
@@ -142,12 +145,25 @@ class SlayerAltsPanel extends PluginPanel
 			}
 			for (SlayerTask t : hits)
 			{
-				results.add(taskBox(t, false));
+				results.add(taskBox(t, hits.size() == 1));
 			}
 		}
 
 		results.revalidate();
 		results.repaint();
+	}
+
+	private static int countable(List<Option> opts)
+	{
+		int n = 0;
+		for (Option o : opts)
+		{
+			if (!o.isSuperior())
+			{
+				n++;
+			}
+		}
+		return n;
 	}
 
 	private JLabel hint(String text)
@@ -159,9 +175,10 @@ class SlayerAltsPanel extends PluginPanel
 		return l;
 	}
 
-	/** One task as a titled box, the way core's loot tracker does its entries. */
 	private JPanel taskBox(SlayerTask task, boolean expanded)
 	{
+		List<Option> options = Option.from(task, config.sortByXp());
+
 		JPanel box = new JPanel(new BorderLayout());
 		box.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		box.setBorder(new EmptyBorder(5, 0, 0, 0));
@@ -174,7 +191,7 @@ class SlayerAltsPanel extends PluginPanel
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
 
-		JLabel right = new JLabel(headline(task));
+		JLabel right = new JLabel(range(options));
 		right.setFont(FontManager.getRunescapeSmallFont());
 		right.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 
@@ -184,32 +201,24 @@ class SlayerAltsPanel extends PluginPanel
 		JPanel body = new JPanel();
 		body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
 		body.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		body.setBorder(new EmptyBorder(4, 7, 7, 7));
+		body.setBorder(new EmptyBorder(5, 7, 7, 7));
 		body.setVisible(expanded);
 
-		List<Monster> monsters = config.sortByXp() ? task.choosable() : task.getMonsters();
-		boolean any = false;
-		for (Monster m : monsters)
+		JPanel rec = recommendation(options);
+		if (rec != null)
 		{
-			if (m.isSuperior() && config.hideSuperiors())
+			body.add(rec);
+		}
+
+		boolean any = false;
+		for (Option o : options)
+		{
+			if (o.isSuperior() && config.hideSuperiors())
 			{
 				continue;
 			}
-			body.add(monsterRow(m));
+			body.add(optionRow(o));
 			any = true;
-		}
-
-		// superiors are dropped by choosable(), so add them back at the bottom greyed out
-		if (config.sortByXp() && !config.hideSuperiors())
-		{
-			for (Monster m : task.getMonsters())
-			{
-				if (m.isSuperior())
-				{
-					body.add(monsterRow(m));
-					any = true;
-				}
-			}
 		}
 
 		if (!any)
@@ -217,10 +226,6 @@ class SlayerAltsPanel extends PluginPanel
 			body.add(hint("No monster data on the wiki for this one."));
 		}
 
-		if (!task.getRequirements().isEmpty())
-		{
-			body.add(detail("Requires: " + String.join(", ", task.getRequirements())));
-		}
 		if (!task.getItems().isEmpty())
 		{
 			body.add(detail("Bring: " + String.join(", ", task.getItems())));
@@ -253,53 +258,187 @@ class SlayerAltsPanel extends PluginPanel
 		return box;
 	}
 
-	private String headline(SlayerTask task)
+	/** "87-1065 xp" across everything you could choose. */
+	private static String range(List<Option> options)
 	{
-		double best = task.bestXp();
-		if (best < 0)
+		double lo = Double.MAX_VALUE, hi = -1;
+		for (Option o : options)
+		{
+			if (o.isSuperior() || o.getBestXp() < 0)
+			{
+				continue;
+			}
+			lo = Math.min(lo, o.getBestXp());
+			hi = Math.max(hi, o.getBestXp());
+		}
+		if (hi < 0)
 		{
 			return "";
 		}
-		return trim(best) + " xp";
+		return (lo == hi ? Option.trim(hi) : Option.trim(lo) + "-" + Option.trim(hi)) + " xp";
 	}
 
-	private JPanel monsterRow(Monster m)
+	/**
+	 * The whole point of the panel: what to go kill, and what it costs.
+	 *
+	 * Only worth drawing when there's an actual choice AND the best option is properly
+	 * better than the worst. A 1.1x difference isn't a recommendation, it's noise.
+	 */
+	private JPanel recommendation(List<Option> options)
 	{
-		JPanel row = new JPanel(new GridLayout(1, 2));
-		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		row.setBorder(new EmptyBorder(2, 0, 2, 0));
+		Option best = null;
+		double worst = Double.MAX_VALUE;
+		int choices = 0;
 
-		JLabel name = new JLabel(m.getName());
-		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(m.isSuperior() ? ColorScheme.MEDIUM_GRAY_COLOR : Color.WHITE);
-		if (!m.getLocations().isEmpty())
+		for (Option o : options)
 		{
-			name.setToolTipText(String.join(", ", m.getLocations()));
+			if (o.isSuperior() || o.getBestXp() < 0)
+			{
+				continue;
+			}
+			choices++;
+			worst = Math.min(worst, o.getBestXp());
+			if (best == null || o.getBestXp() > best.getBestXp())
+			{
+				best = o;
+			}
 		}
 
-		String xp = m.xp() < 0 ? "-" : trim(m.xp()) + " xp";
-		JLabel value = new JLabel(xp, JLabel.RIGHT);
-		value.setFont(FontManager.getRunescapeSmallFont());
-		value.setForeground(m.isSuperior()
-			? ColorScheme.MEDIUM_GRAY_COLOR : ColorScheme.LIGHT_GRAY_COLOR);
+		if (best == null || choices < 2)
+		{
+			return null;
+		}
+
+		double mult = worst > 0 ? best.getBestXp() / worst : 0;
+		if (mult < 1.5)
+		{
+			return null;
+		}
+
+		JPanel rec = new JPanel(new BorderLayout());
+		rec.setBackground(REC_BG);
+		rec.setBorder(BorderFactory.createCompoundBorder(
+			new MatteBorder(0, 2, 0, 0, ColorScheme.BRAND_ORANGE),
+			new EmptyBorder(5, 6, 5, 6)));
+
+		JPanel top = new JPanel(new BorderLayout());
+		top.setBackground(REC_BG);
+
+		JLabel who = new JLabel(best.getName());
+		who.setFont(FontManager.getRunescapeSmallFont());
+		who.setForeground(ColorScheme.BRAND_ORANGE);
+
+		JLabel x = new JLabel(fmtMult(mult) + " xp");
+		x.setFont(FontManager.getRunescapeSmallFont());
+		x.setForeground(ColorScheme.BRAND_ORANGE);
+
+		top.add(who, BorderLayout.WEST);
+		top.add(x, BorderLayout.EAST);
+
+		StringBuilder why = new StringBuilder(Option.trim(best.getBestXp()) + " xp each");
+		if (!best.getGate().isEmpty())
+		{
+			why.append(". Needs ").append(best.getGate());
+		}
+		why.append('.');
+
+		JLabel sub = new JLabel("<html><body style='width:150px'>" + why + "</body></html>");
+		sub.setFont(FontManager.getRunescapeSmallFont());
+		sub.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		sub.setBorder(new EmptyBorder(2, 0, 0, 0));
+
+		rec.add(top, BorderLayout.NORTH);
+		rec.add(sub, BorderLayout.CENTER);
+
+		JPanel wrap = new JPanel(new BorderLayout());
+		wrap.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		wrap.setBorder(new EmptyBorder(0, 0, 6, 0));
+		wrap.add(rec);
+		return wrap;
+	}
+
+	private static String fmtMult(double m)
+	{
+		return (m >= 10 ? String.valueOf(Math.round(m))
+			: String.valueOf(Math.round(m * 10) / 10.0)) + "\u00d7";
+	}
+
+	/** Two lines: name/combat/xp, then where it is and what gates it. */
+	private JPanel optionRow(Option o)
+	{
+		JPanel row = new JPanel();
+		row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
+		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		row.setBorder(BorderFactory.createCompoundBorder(
+			new MatteBorder(0, 0, 1, 0, ROW_LINE),
+			new EmptyBorder(3, 1, 3, 1)));
+
+		Color fg = o.isSuperior() ? ColorScheme.MEDIUM_GRAY_COLOR : Color.WHITE;
+		Color dim = o.isSuperior() ? ColorScheme.MEDIUM_GRAY_COLOR : ColorScheme.LIGHT_GRAY_COLOR;
+
+		JPanel line1 = new JPanel(new BorderLayout(4, 0));
+		line1.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+
+		JPanel left = new JPanel(new BorderLayout(4, 0));
+		left.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+
+		JLabel name = new JLabel(o.getName());
+		name.setFont(FontManager.getRunescapeSmallFont());
+		name.setForeground(fg);
+		left.add(name, BorderLayout.WEST);
+
+		if (!o.getCombat().isEmpty())
+		{
+			JLabel cb = new JLabel(o.getCombat());
+			cb.setFont(FontManager.getRunescapeSmallFont());
+			cb.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
+			left.add(cb, BorderLayout.CENTER);
+		}
+
+		JLabel xp = new JLabel(o.getXp().isEmpty() ? "-" : o.getXp() + " xp");
+		xp.setFont(FontManager.getRunescapeSmallFont());
+		xp.setForeground(dim);
+
+		line1.add(left, BorderLayout.WEST);
+		line1.add(xp, BorderLayout.EAST);
+
+		JPanel line2 = new JPanel(new BorderLayout(4, 0));
+		line2.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+
+		String loc = o.getLocation();
+		if (o.getExtraLocations() > 0)
+		{
+			loc += ", +" + o.getExtraLocations();
+		}
+		JLabel where = new JLabel(loc);
+		where.setFont(FontManager.getRunescapeSmallFont());
+		where.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
+
+		JLabel gate = new JLabel(o.getGate().isEmpty() ? "open" : o.getGate());
+		gate.setFont(FontManager.getRunescapeSmallFont());
+		gate.setForeground(o.getGate().isEmpty() ? OPEN : GATE);
+
+		line2.add(where, BorderLayout.WEST);
+		line2.add(gate, BorderLayout.EAST);
+
+		row.add(line1);
+		row.add(line2);
 
 		StringBuilder tip = new StringBuilder("<html>");
-		if (m.getCombat() != null && !m.getCombat().isEmpty())
+		tip.append(o.getName());
+		if (!o.getCombat().isEmpty())
 		{
-			tip.append("Combat ").append(m.getCombat());
+			tip.append("<br>Combat ").append(o.getCombat());
 		}
-		for (String n : m.getNotes())
+		if (!o.getLocation().isEmpty())
 		{
-			tip.append("<br>").append(n);
+			tip.append("<br>").append(o.getLocation());
 		}
-		if (!m.isVerified())
+		if (!o.isVerified())
 		{
 			tip.append("<br><i>unverified - wiki article table only</i>");
 		}
-		value.setToolTipText(tip.append("</html>").toString());
-
-		row.add(name);
-		row.add(value);
+		row.setToolTipText(tip.append("</html>").toString());
 
 		row.addMouseListener(new MouseAdapter()
 		{
@@ -307,7 +446,7 @@ class SlayerAltsPanel extends PluginPanel
 			public void mouseClicked(MouseEvent e)
 			{
 				LinkBrowser.browse("https://oldschool.runescape.wiki/w/"
-					+ m.getName().replace(' ', '_'));
+					+ o.getName().replace(' ', '_'));
 			}
 
 			@Override
@@ -335,6 +474,13 @@ class SlayerAltsPanel extends PluginPanel
 			if (child instanceof JPanel)
 			{
 				child.setBackground(c);
+				for (Component sub : ((JPanel) child).getComponents())
+				{
+					if (sub instanceof JPanel)
+					{
+						sub.setBackground(c);
+					}
+				}
 			}
 		}
 	}
@@ -346,11 +492,5 @@ class SlayerAltsPanel extends PluginPanel
 		l.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		l.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
 		return l;
-	}
-
-	/** 1065.0 reads as 1065, 618.5 stays 618.5. */
-	private static String trim(double v)
-	{
-		return v == Math.floor(v) ? String.valueOf((long) v) : String.valueOf(v);
 	}
 }
