@@ -167,8 +167,14 @@ def main():
     with open("slayer-variants.tsv", "w", encoding="utf-8") as f:
         f.write("task\tmonster\tcombat\tslayer_xp\tlocations\tnotes\n")
 
-        seen = set()
-        n_rows = 0
+        # keyed on (task, monster, combat, xp) -> the row dict itself, not a bool.
+        # the wiki genuinely repeats a monster with the SAME name/level/xp but a
+        # DIFFERENT location as a second table row - the abyssal demon page lists it
+        # once for its normal spawns and again, separately, for the Catacombs of
+        # Kourend version. dropping the second occurrence as "already seen" silently
+        # threw its location away; merging locations into the first row keeps it.
+        rows_by_key = {}
+        order = []
         n_tasks = 0
         for title in sorted(pages):
             task = title.split("/", 1)[1]
@@ -179,7 +185,7 @@ def main():
                 names = split_stacked(r[0])
                 combats = split_stacked(r[1]) if len(r) > 1 else []
                 xps = split_stacked(r[2]) if len(r) > 2 else []
-                locs = " | ".join(bullets(r[3])) if len(r) > 3 else ""
+                locs = bullets(r[3]) if len(r) > 3 else []
                 notes = " | ".join(bullets(r[4])) if len(r) > 4 else ""
 
                 if not names:
@@ -217,11 +223,25 @@ def main():
                     xp = xps[i] if i < len(xps) else (
                         xps[0] if len(xps) == 1 else "")
                     key = (task, monster, combat, xp)
-                    if key in seen:
+
+                    if key in rows_by_key:
+                        existing = rows_by_key[key]
+                        for loc in locs:
+                            if loc not in existing["locs"]:
+                                existing["locs"].append(loc)
                         continue
-                    seen.add(key)
-                    f.write(f"{task}\t{monster}\t{combat}\t{xp}\t{locs}\t{notes}\n")
-                    n_rows += 1
+
+                    entry = {"locs": list(locs), "notes": notes}
+                    rows_by_key[key] = entry
+                    order.append(key)
+
+        n_rows = 0
+        for key in order:
+            task, monster, combat, xp = key
+            entry = rows_by_key[key]
+            locs = " | ".join(entry["locs"])
+            f.write(f"{task}\t{monster}\t{combat}\t{xp}\t{locs}\t{entry['notes']}\n")
+            n_rows += 1
 
     print(f"# {n_tasks} tasks with a variants table, {n_rows} rows", file=sys.stderr)
     print(f"# {len(pages) - n_tasks} pages had no table - check those by hand", file=sys.stderr)

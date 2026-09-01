@@ -24,6 +24,9 @@ public class Monster
 	List<String> locations;
 	List<String> notes;
 
+	/** melee/ranged/magic, however many the statblock actually hits with. Empty if unknown. */
+	List<String> styles;
+
 	/** Rare spawn you can't choose to farm, so it never sets the headline number. */
 	boolean superior;
 
@@ -38,6 +41,11 @@ public class Monster
 	public List<String> getNotes()
 	{
 		return notes == null ? Collections.emptyList() : notes;
+	}
+
+	public List<String> getStyles()
+	{
+		return styles == null ? Collections.emptyList() : styles;
 	}
 
 	/** Slayer xp as a number, or -1 when the wiki didn't give one. */

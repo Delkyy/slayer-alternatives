@@ -45,7 +45,7 @@ def bucket_all():
     rows, offset = [], 0
     while True:
         q = ("bucket('infobox_monster')"
-             ".select('page_name','name','combat_level','slayer_experience','slayer_level')"
+             ".select('page_name','name','combat_level','slayer_experience','slayer_level','attack_style')"
              f".limit(2000).offset({offset}).run()")
         d = get({"action": "bucket", "query": q})
         if "error" in d:
@@ -74,6 +74,41 @@ def fmt(x):
     if x is None:
         return ""
     return str(int(x)) if float(x).is_integer() else str(x)
+
+
+# same collapse as pull-combat-styles.py - kept here too rather than imported, since
+# this script already owns the one bucket_all() pull and duplicating a 20-line table
+# beats a cross-tool import for something this static.
+STYLE_MAP = {
+    "stab": {"melee"}, "slash": {"melee"}, "crush": {"melee"}, "melee": {"melee"},
+    "ranged": {"ranged"}, "range": {"ranged"},
+    "ranged melee": {"melee", "ranged"}, "ranged magic": {"ranged", "magic"},
+    "magic": {"magic"}, "magical melee": {"melee", "magic"}, "magic melee": {"melee", "magic"},
+    "magical ranged": {"ranged", "magic"},
+    "dragonfire": {"magic"}, "icy breath": {"magic"},
+    "n/a": set(), "none": set(),
+    "melee (crush?)": {"melee"}, "melee (slash)": {"melee"},
+    "typeless crush": {"melee"}, "typeless slash": {"melee"}, "typeless stab": {"melee"},
+    "typeless melee": {"melee"}, "typeless ranged": {"ranged"}, "typeless magic": {"magic"},
+    "ranged <br/> typeless": {"ranged"}, "single and multi-target ranged": {"ranged"},
+}
+_STYLE_STRIP = (" (100% prayer penetration)", " (bleed)", " (fire waves)", " (special)")
+
+
+def attack_styles(pick):
+    """The one to three combat styles this statblock hits with, or [] if unknown."""
+    if not pick:
+        return []
+    out = set()
+    for raw in (pick.get("attack_style") or []):
+        v = re.sub(r"\x7f'\"`UNIQ--ref-[0-9A-F]+-QINU`\"'\x7f", "", raw.strip()).strip()
+        key = v.lower()
+        for suffix in _STYLE_STRIP:
+            if key.endswith(suffix):
+                key = key[: -len(suffix)]
+                break
+        out |= STYLE_MAP.get(key, set())
+    return sorted(out)
 
 
 def load(name):
@@ -138,6 +173,7 @@ def main():
             "slayerXp": fmt(xp),
             "locations": [x for x in v["locations"].split(" | ") if x.strip()],
             "notes": [x for x in v["notes"].split(" | ") if x.strip()],
+            "styles": attack_styles(pick),
             "superior": key in sup_by_task.get(taskkey(v["task"]), set()),
             "verified": verified,
         })

@@ -36,7 +36,9 @@ import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import net.runelite.api.Skill;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SkillIconManager;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.IconTextField;
@@ -69,6 +71,7 @@ class SlayerAltsPanel extends PluginPanel
 
 	private final SlayerAltsConfig config;
 	private final ItemManager itemManager;
+	private final SkillIconManager skillIconManager;
 	private final Icons icons;
 
 	private final IconTextField search = new IconTextField();
@@ -119,10 +122,11 @@ class SlayerAltsPanel extends PluginPanel
 	}
 
 	@Inject
-	SlayerAltsPanel(SlayerAltsConfig config, ItemManager itemManager, Gson gson)
+	SlayerAltsPanel(SlayerAltsConfig config, ItemManager itemManager, SkillIconManager skillIconManager, Gson gson)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
+		this.skillIconManager = skillIconManager;
 		this.icons = Icons.load(gson);
 		this.guides = loadGuides(gson);
 
@@ -592,7 +596,19 @@ class SlayerAltsPanel extends PluginPanel
 		xp.setFont(FontManager.getRunescapeSmallFont());
 		xp.setForeground(dimmed);
 
-		line1.add(name, BorderLayout.CENTER);
+		JPanel nameAndStyles = new JPanel();
+		nameAndStyles.setLayout(new BoxLayout(nameAndStyles, BoxLayout.X_AXIS));
+		nameAndStyles.setBackground(PANEL);
+		nameAndStyles.add(name);
+		for (String style : o.getStyles())
+		{
+			JLabel s = new JLabel(styleIcon(style));
+			s.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
+			s.setToolTipText("Hits with " + style);
+			nameAndStyles.add(s);
+		}
+
+		line1.add(nameAndStyles, BorderLayout.CENTER);
 		line1.add(xp, BorderLayout.EAST);
 
 		JPanel line2 = new JPanel(new BorderLayout(4, 0));
@@ -826,6 +842,39 @@ class SlayerAltsPanel extends PluginPanel
 		{
 			return SIZE;
 		}
+	}
+
+	/**
+	 * The game's own Attack/Ranged/Magic skill icon, scaled down to sit inline with
+	 * a row's text. Real game art rather than a drawn glyph - these ship inside
+	 * RuneLite core itself (SkillIconManager reads them from its own resources), so
+	 * there's no licensing question and no risk of looking off-brand next to the
+	 * actual skill icons the player sees everywhere else in the client.
+	 *
+	 * "melee" has no single RuneLite skill of its own - Attack is the closest 1:1
+	 * icon (it's also what the wiki's own attack-style documentation uses to stand
+	 * in for melee), so that's what's shown for every melee-hitting monster.
+	 */
+	private Icon styleIcon(String style)
+	{
+		Skill skill;
+		switch (style)
+		{
+			case "ranged":
+				skill = Skill.RANGED;
+				break;
+			case "magic":
+				skill = Skill.MAGIC;
+				break;
+			case "melee":
+			default:
+				skill = Skill.ATTACK;
+				break;
+		}
+
+		java.awt.Image img = skillIconManager.getSkillImage(skill, true)
+			.getScaledInstance(18, 18, java.awt.Image.SCALE_SMOOTH);
+		return new javax.swing.ImageIcon(img);
 	}
 
 	/** A centred line inside a BoxLayout column. */

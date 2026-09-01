@@ -93,8 +93,10 @@ def bullets(cell):
 
         v = unlink(body)
         if v:
-            # ** entries are sub-options (e.g. slayer helmet under nose peg)
-            out.append(("  " if depth > 1 else "") + v)
+            # sub-bullets (e.g. slayer helmet listed under nose peg) are still a real,
+            # independent alternative - "either works" - so they join the flat list
+            # rather than carrying an indent marker nothing downstream ever consumed.
+            out.append(v)
     if not out:
         v = unlink(cell)
         if v:

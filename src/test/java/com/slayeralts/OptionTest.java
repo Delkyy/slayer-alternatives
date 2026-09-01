@@ -43,6 +43,69 @@ public class OptionTest
 	}
 
 	@Test
+	public void meleeMonsterGetsMeleeStyle()
+	{
+		// greater demons hit with slash - a straightforward melee-only monster,
+		// good as a check that a single style comes through clean
+		Option o = find("Greater demons", "Greater Demon");
+		assertEquals(java.util.Collections.singletonList("melee"), o.getStyles());
+	}
+
+	@Test
+	public void multiStyleMonsterGetsAllOfThem()
+	{
+		// metal dragons hit with a physical attack AND dragonfire (which maps to
+		// magic) - a wrong single-style mapping here would tell someone to bring
+		// only melee gear against something that also breathes magic damage at them
+		Option o = find("Metal dragons", "Bronze dragon");
+		assertTrue("expected melee in " + o.getStyles(), o.getStyles().contains("melee"));
+		assertTrue("expected magic in " + o.getStyles(), o.getStyles().contains("magic"));
+	}
+
+	@Test
+	public void everyOptionHasAStylesList()
+	{
+		// never null - a missing wiki value is an empty list, not something that NPEs
+		// the panel when it iterates o.getStyles()
+		for (SlayerTask t : book.all())
+		{
+			for (Option o : Option.from(t, true))
+			{
+				assertNotNull(t.getTask() + " / " + o.getName(), o.getStyles());
+			}
+		}
+	}
+
+	@Test
+	public void requiredItemsSurviveTheWhitespaceBug()
+	{
+		// pull-tasks.py used to prefix sub-bullet items with two literal spaces
+		// ("  Slayer helmet") because of an indent marker nothing downstream ever
+		// consumed - this pins the fixed, trimmed form so it can't silently return
+		SlayerTask t = book.find("Aberrant spectres");
+		for (String item : t.getItems())
+		{
+			assertFalse("item has a leading-space bug: " + item, item.startsWith(" "));
+		}
+		assertTrue(t.getItems().contains("Nose peg"));
+		assertTrue(t.getItems().contains("Slayer helmet"));
+	}
+
+	@Test
+	public void repeatedMonsterRowKeepsBothLocations()
+	{
+		// the wiki lists Abyssal demon TWICE on the same page - identical name,
+		// combat level and xp, but one row for its normal spawns and a separate row
+		// for the Catacombs of Kourend version. pull-variants.py used to key its
+		// dedup on (task, monster, combat, xp) alone, so the second row looked like
+		// an exact duplicate of the first and its location was silently thrown
+		// away - Catacombs never showed up anywhere in the panel.
+		Option o = find("Abyssal demons", "Abyssal demon");
+		assertTrue("locations were " + o.getLocations(),
+			o.getLocations().contains("Catacombs of Kourend"));
+	}
+
+	@Test
 	public void fiveGreaterDemonRowsBecomeOne()
 	{
 		// the wiki lists Greater Demon once per statblock - cb 92/100/101/104/113

@@ -30,9 +30,17 @@ public class Option
 	boolean superior;
 	boolean verified;
 
+	/** melee/ranged/magic this thing hits back with. Empty means the wiki didn't say. */
+	List<String> styles;
+
 	public List<String> getLocations()
 	{
 		return locations == null ? java.util.Collections.emptyList() : locations;
+	}
+
+	public List<String> getStyles()
+	{
+		return styles == null ? java.util.Collections.emptyList() : styles;
 	}
 
 	/** First location, for the one-line summary. */
@@ -146,7 +154,7 @@ public class Option
 
 		for (String name : task.getAlternatives())
 		{
-			out.add(new Option(name, "", "", -1, locs, "", false, false));
+			out.add(new Option(name, "", "", -1, locs, "", false, false, java.util.Collections.emptyList()));
 		}
 		for (String sup : task.getSuperiors())
 		{
@@ -154,7 +162,7 @@ public class Option
 			String name = sup.replaceAll("(?i)^superior slayer monsters?\\s*", "").trim();
 			if (!name.isEmpty())
 			{
-				out.add(new Option(name, "", "", -1, locs, "", true, false));
+				out.add(new Option(name, "", "", -1, locs, "", true, false, java.util.Collections.emptyList()));
 			}
 		}
 		return out;
@@ -224,8 +232,23 @@ public class Option
 			verified &= m.isVerified();
 		}
 
+		// styles union across the group - different combat levels of the same monster
+		// name hit the same way in practice, but union rather than "just take the
+		// first" costs nothing and is correct if that ever isn't true.
+		List<String> styles = new ArrayList<>();
+		for (Monster m : g)
+		{
+			for (String s : m.getStyles())
+			{
+				if (!styles.contains(s))
+				{
+					styles.add(s);
+				}
+			}
+		}
+
 		return new Option(first.getName(), cb, xp, hi < 0 ? -1 : hi,
-			locs, gate, first.isSuperior(), verified);
+			locs, gate, first.isSuperior(), verified, styles);
 	}
 
 	private static int parseCombat(String s)
